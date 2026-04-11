@@ -16,15 +16,17 @@ public class PlaceObject : MonoBehaviour
     }
 
     void Update()
+{
+    if (PhotonNetwork.InRoom && Input.touchCount > 0)
     {
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
+        Touch touch = Input.GetTouch(0);
 
-            if (raycastManager.Raycast(touch.position, hits, TrackableType.PlaneWithinPolygon))
-            {
-                Pose pose = hits[0].pose;
-               PhotonNetwork.Instantiate(prefab.name, pose.position, pose.rotation);
+        if (raycastManager.Raycast(touch.position, hits, TrackableType.PlaneWithinPolygon))
+        {
+            Pose pose = hits[0].pose;
+
+            PhotonNetwork.Instantiate(prefab.name, pose.position, pose.rotation);
         }
     }
+}
 }
