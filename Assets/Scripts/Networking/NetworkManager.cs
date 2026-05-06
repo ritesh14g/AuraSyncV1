@@ -26,6 +26,13 @@ namespace AuraSync.Networking
         void Start()
         {
             Debug.Log("[AuraSync Network] Connecting to Photon...");
+            
+            // Force TCP instead of UDP to bypass Windows Firewall/Network timeouts
+            if (PhotonNetwork.PhotonServerSettings != null)
+            {
+                PhotonNetwork.PhotonServerSettings.AppSettings.Protocol = ExitGames.Client.Photon.ConnectionProtocol.Tcp;
+            }
+            
             PhotonNetwork.ConnectUsingSettings();
         }
 
