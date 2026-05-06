@@ -40,6 +40,7 @@ namespace AuraSync.Data
         public float[] localScale    = new float[3];   // x, y, z
         public long   timestamp;
         public bool   isPrivate = false;
+        public string cloudAnchorId;
 
         /// <summary>Helper to convert Unity Vector3 to float array for serialization.</summary>
         public void SetPosition(Vector3 pos)

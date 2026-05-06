@@ -10570,6 +10570,9 @@ GameObject:
   - component: {fileID: 1921137299}
   - component: {fileID: 1921137298}
   - component: {fileID: 1921137297}
+  - component: {fileID: 1921137304}
+  - component: {fileID: 1921137303}
+  - component: {fileID: 1921137302}
   m_Layer: 0
   m_Name: XR Origin
   m_TagString: Untagged
@@ -10698,6 +10701,48 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_RaycastPrefab: {fileID: 0}
+--- !u!114 &1921137302
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1921137294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1b50ad3f5d9024549b0a549c5a03a084, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Session: {fileID: 521253612}
+  SessionOrigin: {fileID: 0}
+  CameraManager: {fileID: 858117784}
+  ARCoreExtensionsConfig: {fileID: 0}
+  CameraConfigFilter: {fileID: 0}
+--- !u!114 &1921137303
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1921137294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cbb9400350754bb48871ae093a735217, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+--- !u!114 &1921137304
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1921137294}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 728ad7fae8e460a4ba41265c7308d757, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_AnchorPrefab: {fileID: 0}
 --- !u!1 &1936249467
 GameObject:
   m_ObjectHideFlags: 0
@@ -11152,6 +11197,7 @@ MonoBehaviour:
     - 1
     timestamp: 1773935439899
     isPrivate: 0
+    cloudAnchorId: 
     noteType: 0
     noteStyle: 0
     text: 
@@ -11176,6 +11222,7 @@ MonoBehaviour:
     - 0.1
     timestamp: 1773935439899
     isPrivate: 0
+    cloudAnchorId: 
     prefabName: Cube
     colorHex: '#FFFFFF'
     borderColorHex: '#000000'

@@ -160,6 +160,8 @@ namespace AuraSync.Core
             Quaternion rotation = Quaternion.LookRotation(toCamera.normalized, Vector3.up);
 
             GameObject noteObj = Instantiate(notePrefabs[prefabIndex], pos, rotation);
+            ARAnchor anchor = noteObj.AddComponent<ARAnchor>(); // Create local anchor
+            
             noteObj.transform.localScale = config.GetScale();
             config.SetPosition(pos);
             config.SetRotation(rotation);
@@ -172,14 +174,45 @@ namespace AuraSync.Core
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Note placed at {pos}");
 
-            // --- PUN2 Network Sync ---
-            if (!config.isPrivate && Networking.NetworkManager.Instance != null)
+            // --- PUN2 Network Sync + Cloud Anchors ---
+            if (!config.isPrivate)
             {
-                var pv = Networking.NetworkManager.Instance.GetComponent<Photon.Pun.PhotonView>();
-                if (pv != null)
+                if (Networking.CloudAnchorManager.Instance != null)
                 {
-                    string json = JsonUtility.ToJson(config);
-                    pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
+                    ShowPlacementFeedback("Hosting Note to Cloud...");
+                    Networking.CloudAnchorManager.Instance.HostAnchor(anchor, (cloudId) => 
+                    {
+                        config.cloudAnchorId = cloudId;
+                        // Update the local save with the new cloud ID
+                        // PersistenceManager.Instance.UpdateNote(config); 
+                        
+                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                        if (pv != null)
+                        {
+                            string json = JsonUtility.ToJson(config);
+                            pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
+                        }
+                        ShowPlacementFeedback("Note Cloud Anchor Hosted!");
+                    }, (error) => 
+                    {
+                        ShowPlacementFeedback("Failed to host Cloud Anchor. Sending local position only.");
+                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                        if (pv != null)
+                        {
+                            string json = JsonUtility.ToJson(config);
+                            pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
+                        }
+                    });
+                }
+                else
+                {
+                    // Fallback if CloudAnchorManager is not in scene
+                    var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                    if (pv != null)
+                    {
+                        string json = JsonUtility.ToJson(config);
+                        pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
+                    }
                 }
             }
         }
@@ -206,6 +239,8 @@ namespace AuraSync.Core
 
             Vector3    pos = hitPose.position + hitPose.up * placementOffset;
             GameObject obj = Instantiate(prefab, pos, hitPose.rotation);
+            ARAnchor anchor = obj.AddComponent<ARAnchor>(); // Create local anchor
+
             obj.transform.localScale = config.GetScale();
             config.SetPosition(pos);
             config.SetRotation(hitPose.rotation);
@@ -218,14 +253,43 @@ namespace AuraSync.Core
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Object placed: {config.prefabName} at {pos}");
 
-            // --- PUN2 Network Sync ---
-            if (!config.isPrivate && Networking.NetworkManager.Instance != null)
+            // --- PUN2 Network Sync + Cloud Anchors ---
+            if (!config.isPrivate)
             {
-                var pv = Networking.NetworkManager.Instance.GetComponent<Photon.Pun.PhotonView>();
-                if (pv != null)
+                if (Networking.CloudAnchorManager.Instance != null)
                 {
-                    string json = JsonUtility.ToJson(config);
-                    pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
+                    ShowPlacementFeedback("Hosting Object to Cloud...");
+                    Networking.CloudAnchorManager.Instance.HostAnchor(anchor, (cloudId) => 
+                    {
+                        config.cloudAnchorId = cloudId;
+                        // PersistenceManager.Instance.UpdateObject(config);
+                        
+                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                        if (pv != null)
+                        {
+                            string json = JsonUtility.ToJson(config);
+                            pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
+                        }
+                        ShowPlacementFeedback("Object Cloud Anchor Hosted!");
+                    }, (error) => 
+                    {
+                        ShowPlacementFeedback("Failed to host Cloud Anchor. Sending local position only.");
+                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                        if (pv != null)
+                        {
+                            string json = JsonUtility.ToJson(config);
+                            pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
+                        }
+                    });
+                }
+                else
+                {
+                    var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+                    if (pv != null)
+                    {
+                        string json = JsonUtility.ToJson(config);
+                        pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
+                    }
                 }
             }
         }
@@ -392,6 +456,39 @@ namespace AuraSync.Core
         // ──────────────────────────────────────────
         public void NetworkPlaceNote(NoteItemData config)
         {
+            if (!string.IsNullOrEmpty(config.cloudAnchorId) && Networking.CloudAnchorManager.Instance != null)
+            {
+                ShowPlacementFeedback("Resolving note from Cloud Anchor...");
+                Networking.CloudAnchorManager.Instance.ResolveAnchor(config.cloudAnchorId, (resolvedTransform) => 
+                {
+                    int prefabIndex = GetNotePrefabIndex(config.noteStyle, config.noteType);
+                    if (prefabIndex < 0 || prefabIndex >= notePrefabs.Length) return;
+
+                    GameObject noteObj = Instantiate(notePrefabs[prefabIndex], resolvedTransform);
+                    noteObj.transform.localPosition = Vector3.zero;
+                    noteObj.transform.localRotation = Quaternion.identity;
+                    noteObj.transform.localScale = config.GetScale();
+
+                    var ctrl = noteObj.GetComponent<Notes.NoteController>();
+                    if (ctrl != null) ctrl.Initialize(config);
+
+                    _activeItems[config.id] = noteObj;
+                    PersistenceManager.Instance.AddNote(config);
+                    Debug.Log($"[AuraSync] Network Note perfectly aligned via Cloud Anchor!");
+                }, (error) => 
+                {
+                    ShowPlacementFeedback("Cloud Anchor Resolve Failed. Falling back to relative coords.");
+                    SpawnNoteFallback(config);
+                });
+            }
+            else
+            {
+                SpawnNoteFallback(config);
+            }
+        }
+
+        private void SpawnNoteFallback(NoteItemData config)
+        {
             int prefabIndex = GetNotePrefabIndex(config.noteStyle, config.noteType);
             if (prefabIndex < 0 || prefabIndex >= notePrefabs.Length) return;
 
@@ -406,10 +503,43 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = noteObj;
             PersistenceManager.Instance.AddNote(config);
-            Debug.Log($"[AuraSync] Network Note placed at {pos}");
+            Debug.Log($"[AuraSync] Network Note placed at {pos} (Fallback/No Cloud ID)");
         }
 
         public void NetworkPlaceObject(ObjectItemData config)
+        {
+            if (!string.IsNullOrEmpty(config.cloudAnchorId) && Networking.CloudAnchorManager.Instance != null)
+            {
+                ShowPlacementFeedback("Resolving object from Cloud Anchor...");
+                Networking.CloudAnchorManager.Instance.ResolveAnchor(config.cloudAnchorId, (resolvedTransform) => 
+                {
+                    GameObject prefab = GetObjectPrefab(config.prefabName);
+                    if (prefab == null) return;
+
+                    GameObject obj = Instantiate(prefab, resolvedTransform);
+                    obj.transform.localPosition = Vector3.zero;
+                    obj.transform.localRotation = Quaternion.identity;
+                    obj.transform.localScale = config.GetScale();
+
+                    var ctrl = obj.GetComponent<Objects.ObjectController>();
+                    if (ctrl != null) ctrl.Initialize(config);
+
+                    _activeItems[config.id] = obj;
+                    PersistenceManager.Instance.AddObject(config);
+                    Debug.Log($"[AuraSync] Network Object perfectly aligned via Cloud Anchor!");
+                }, (error) => 
+                {
+                    ShowPlacementFeedback("Cloud Anchor Resolve Failed. Falling back to relative coords.");
+                    SpawnObjectFallback(config);
+                });
+            }
+            else
+            {
+                SpawnObjectFallback(config);
+            }
+        }
+
+        private void SpawnObjectFallback(ObjectItemData config)
         {
             GameObject prefab = GetObjectPrefab(config.prefabName);
             if (prefab == null) return;
@@ -425,7 +555,7 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = obj;
             PersistenceManager.Instance.AddObject(config);
-            Debug.Log($"[AuraSync] Network Object placed: {config.prefabName} at {pos}");
+            Debug.Log($"[AuraSync] Network Object placed: {config.prefabName} at {pos} (Fallback/No Cloud ID)");
         }
     }
 
