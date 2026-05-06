@@ -171,6 +171,17 @@ namespace AuraSync.Core
             PersistenceManager.Instance.AddNote(config);
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Note placed at {pos}");
+
+            // --- PUN2 Network Sync ---
+            if (!config.isPrivate && Networking.NetworkManager.Instance != null)
+            {
+                var pv = Networking.NetworkManager.Instance.GetComponent<Photon.Pun.PhotonView>();
+                if (pv != null)
+                {
+                    string json = JsonUtility.ToJson(config);
+                    pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
+                }
+            }
         }
 
         // ──────────────────────────────────────────
@@ -206,6 +217,17 @@ namespace AuraSync.Core
             PersistenceManager.Instance.AddObject(config);
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Object placed: {config.prefabName} at {pos}");
+
+            // --- PUN2 Network Sync ---
+            if (!config.isPrivate && Networking.NetworkManager.Instance != null)
+            {
+                var pv = Networking.NetworkManager.Instance.GetComponent<Photon.Pun.PhotonView>();
+                if (pv != null)
+                {
+                    string json = JsonUtility.ToJson(config);
+                    pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
+                }
+            }
         }
 
         // ──────────────────────────────────────────
@@ -363,6 +385,47 @@ namespace AuraSync.Core
             foreach (var entry in objectPrefabs)
                 if (entry.name == prefabName) return entry.prefab;
             return null;
+        }
+
+        // ──────────────────────────────────────────
+        //  Network Placement (called by RPC)
+        // ──────────────────────────────────────────
+        public void NetworkPlaceNote(NoteItemData config)
+        {
+            int prefabIndex = GetNotePrefabIndex(config.noteStyle, config.noteType);
+            if (prefabIndex < 0 || prefabIndex >= notePrefabs.Length) return;
+
+            Vector3 pos = config.GetPosition();
+            Quaternion rotation = config.GetRotation();
+            
+            GameObject noteObj = Instantiate(notePrefabs[prefabIndex], pos, rotation);
+            noteObj.transform.localScale = config.GetScale();
+
+            var ctrl = noteObj.GetComponent<Notes.NoteController>();
+            if (ctrl != null) ctrl.Initialize(config);
+
+            _activeItems[config.id] = noteObj;
+            PersistenceManager.Instance.AddNote(config);
+            Debug.Log($"[AuraSync] Network Note placed at {pos}");
+        }
+
+        public void NetworkPlaceObject(ObjectItemData config)
+        {
+            GameObject prefab = GetObjectPrefab(config.prefabName);
+            if (prefab == null) return;
+
+            Vector3 pos = config.GetPosition();
+            Quaternion rotation = config.GetRotation();
+
+            GameObject obj = Instantiate(prefab, pos, rotation);
+            obj.transform.localScale = config.GetScale();
+
+            var ctrl = obj.GetComponent<Objects.ObjectController>();
+            if (ctrl != null) ctrl.Initialize(config);
+
+            _activeItems[config.id] = obj;
+            PersistenceManager.Instance.AddObject(config);
+            Debug.Log($"[AuraSync] Network Object placed: {config.prefabName} at {pos}");
         }
     }
 

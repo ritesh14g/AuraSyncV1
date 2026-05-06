@@ -39,6 +39,7 @@ namespace AuraSync.Data
         public float[] worldRotation = new float[4];   // quaternion x, y, z, w
         public float[] localScale    = new float[3];   // x, y, z
         public long   timestamp;
+        public bool   isPrivate = false;
 
         /// <summary>Helper to convert Unity Vector3 to float array for serialization.</summary>
         public void SetPosition(Vector3 pos)

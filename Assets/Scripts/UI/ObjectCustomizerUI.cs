@@ -37,6 +37,7 @@ namespace AuraSync.UI
         [Header("Opacity")]
         [SerializeField] private Slider          opacitySlider;
         [SerializeField] private TextMeshProUGUI opacityLabel;
+        [SerializeField] private Toggle          privateToggle;
 
         [Header("Footer")]
         [SerializeField] private Button      backButton;
@@ -101,6 +102,12 @@ namespace AuraSync.UI
 
             EnsureLayoutGroup(colorRow);
             BuildColorRow();
+
+            if (privateToggle != null)
+            {
+                privateToggle.onValueChanged.AddListener(OnPrivateToggleChanged);
+            }
+
             HideImmediate();
         }
 
@@ -131,6 +138,7 @@ namespace AuraSync.UI
             if (opacitySlider) opacitySlider.value = 1f;
             if (opacityLabel)  opacityLabel.text  = "Opacity: 100%";
             if (placeButtonLabel) placeButtonLabel.text = "Place →";
+            if (privateToggle) privateToggle.isOn = false;
 
             _isOpen = true;
             StopAllCoroutines();
@@ -173,6 +181,7 @@ namespace AuraSync.UI
             if (opacitySlider) opacitySlider.value  = _opacity;
             if (opacityLabel)  opacityLabel.text    = $"Opacity: {Mathf.RoundToInt(_opacity * 100f)}%";
             if (placeButtonLabel) placeButtonLabel.text = "Apply";
+            if (privateToggle) privateToggle.isOn = data.isPrivate;
 
             _isOpen = true;
             StopAllCoroutines();
@@ -221,6 +230,7 @@ namespace AuraSync.UI
                 if (_editingData != null)
                 {
                     _editingData.colorHex = "#" + ColorUtility.ToHtmlStringRGBA(finalColor);
+                    if (privateToggle) _editingData.isPrivate = privateToggle.isOn;
                     PersistenceManager.Instance?.UpdateObject(_editingData);
                 }
 
@@ -236,7 +246,8 @@ namespace AuraSync.UI
             {
                 id         = _configId,
                 prefabName = _pendingShape,
-                colorHex   = "#" + ColorUtility.ToHtmlStringRGBA(finalColor)
+                colorHex   = "#" + ColorUtility.ToHtmlStringRGBA(finalColor),
+                isPrivate  = privateToggle ? privateToggle.isOn : false
             };
             config.SetScale(Vector3.one);
 
@@ -252,6 +263,16 @@ namespace AuraSync.UI
         {
             _opacity = val;
             if (opacityLabel) opacityLabel.text = $"Opacity: {Mathf.RoundToInt(val * 100f)}%";
+        }
+
+        private void OnPrivateToggleChanged(bool isOn)
+        {
+            if (privateToggle == null) return;
+            var bg = privateToggle.targetGraphic as Image;
+            if (bg != null)
+            {
+                bg.color = isOn ? new Color(0.384f, 0.561f, 1.00f) : Color.white;
+            }
         }
 
         // ─────────────────────────────────────────────────────────────

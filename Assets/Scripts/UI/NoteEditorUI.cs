@@ -36,6 +36,7 @@ namespace AuraSync.UI
 
         [Header("Input")]
         [SerializeField] private TMP_InputField noteInput;
+        [SerializeField] private Toggle         privateToggle;
 
         [Header("Checklist")]
         [SerializeField] private RectTransform checklistContainer;
@@ -125,6 +126,12 @@ namespace AuraSync.UI
             BuildColorRow(bgColorRow, c => _bgColor = c, true);
             BuildColorRow(bdColorRow, c => _bdColor = c, false);
             RefreshToggles();
+
+            if (privateToggle != null)
+            {
+                privateToggle.onValueChanged.AddListener(OnPrivateToggleChanged);
+            }
+
             HideImmediate();
         }
 
@@ -152,6 +159,7 @@ namespace AuraSync.UI
 
             if (sheetTitle) sheetTitle.text = isChecklist ? "New Checklist" : "New Note";
             if (noteInput)  noteInput.text  = "";
+            if (privateToggle) privateToggle.isOn = false;
 
             ClearChecklist();
             if (isChecklist) AddChecklistItem();
@@ -174,6 +182,7 @@ namespace AuraSync.UI
 
             if (sheetTitle) sheetTitle.text = "Edit Note";
             if (noteInput)  noteInput.text  = data.text ?? "";
+            if (privateToggle) privateToggle.isOn = data.isPrivate;
 
             bool sticky = data.noteStyle == NoteStyle.StickyNote;
             SetStyle(sticky);
@@ -256,6 +265,7 @@ namespace AuraSync.UI
                     _editingNote.noteStyle = _isStickyStyle ? NoteStyle.StickyNote : NoteStyle.Paper;
                     _editingNote.colorHex       = "#" + ColorUtility.ToHtmlStringRGBA(_bgColor);
                     _editingNote.borderColorHex = "#" + ColorUtility.ToHtmlStringRGBA(_bdColor);
+                    if (privateToggle) _editingNote.isPrivate = privateToggle.isOn;
                     PersistenceManager.Instance?.UpdateNote(_editingNote);
                     Debug.Log($"[AuraSync] NoteEditorUI: Edited note {_editingNote.id}");
                 }
@@ -272,6 +282,7 @@ namespace AuraSync.UI
                 text        = noteInput ? noteInput.text : "",
                 colorHex    = "#" + ColorUtility.ToHtmlStringRGBA(_bgColor),
                 borderColorHex = "#" + ColorUtility.ToHtmlStringRGBA(_bdColor),
+                isPrivate   = privateToggle ? privateToggle.isOn : false,
             };
 
             // Copy checklist items if applicable
@@ -311,6 +322,16 @@ namespace AuraSync.UI
             var pt = paperToggle.GetComponentInChildren<TextMeshProUGUI>();
             if (st) st.color = _isStickyStyle ? ActiveText : InactiveText;
             if (pt) pt.color = _isStickyStyle ? InactiveText : ActiveText;
+        }
+
+        private void OnPrivateToggleChanged(bool isOn)
+        {
+            if (privateToggle == null) return;
+            var bg = privateToggle.targetGraphic as Image;
+            if (bg != null)
+            {
+                bg.color = isOn ? ActivePill : Color.white;
+            }
         }
 
         // ─────────────────────────────────────────────────────────────
