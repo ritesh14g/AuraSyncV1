@@ -10645,7 +10645,7 @@ MonoBehaviour:
   m_OriginBaseGameObject: {fileID: 1921137294}
   m_CameraFloorOffsetObject: {fileID: 881648089}
   m_RequestedTrackingOriginMode: 0
-  m_CameraYOffset: 1.1176
+  m_CameraYOffset: 0
 --- !u!4 &1921137296
 Transform:
   m_ObjectHideFlags: 0
@@ -10735,7 +10735,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e1760703bbd54c04488a8d10600262ab, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  m_PlanePrefab: {fileID: 0}
+  m_PlanePrefab: {fileID: 3280851142865984837, guid: bdbea20652847fc40a4664eba1ddf656, type: 3}
   m_DetectionMode: -1
 --- !u!114 &1921137301
 MonoBehaviour:
@@ -10765,7 +10765,7 @@ MonoBehaviour:
   Session: {fileID: 521253612}
   SessionOrigin: {fileID: 1712637671}
   CameraManager: {fileID: 858117784}
-  ARCoreExtensionsConfig: {fileID: 0}
+  ARCoreExtensionsConfig: {fileID: 11400000, guid: edca2b0bc0b3d5b4ba9b4583df2b7d33, type: 2}
   CameraConfigFilter: {fileID: 0}
 --- !u!114 &1921137303
 MonoBehaviour:

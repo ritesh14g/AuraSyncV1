@@ -39,22 +39,10 @@ namespace AuraSync
 
         private IEnumerator InitializeWithDelay()
         {
-            // Wait until AR session is tracking (not just a couple of frames)
-            float timeout = 10f;
-            float elapsed = 0f;
-
             Debug.Log("[AuraSync] SceneBootstrapper: Waiting for AR session to begin tracking...");
 
-            while (ARSession.state < ARSessionState.SessionTracking && elapsed < timeout)
-            {
-                elapsed += Time.deltaTime;
-                yield return null;
-            }
-
-            if (ARSession.state < ARSessionState.SessionTracking)
-                Debug.LogWarning("[AuraSync] SceneBootstrapper: AR session tracking timeout — restoring anyway");
-            else
-                Debug.Log("[AuraSync] SceneBootstrapper: AR session ready. Restoring saved items.");
+            // Delegate platform-specific AR wait to a helper so Play Mode works immediately
+            yield return StartCoroutine(WaitForARSession());
 
             // Wait one extra frame so all Awake()/Start() on other scripts have run
             yield return new WaitForEndOfFrame();
@@ -71,6 +59,66 @@ namespace AuraSync
             AppStateManager.Instance?.SetMode(AppMode.Idle);
 
             Debug.Log($"[AuraSync] Initialized: {env.environmentName} | Notes: {env.notes.Count} | Objects: {env.objects.Count}");
+        }
+
+        /// <summary>
+        /// Handles the AR session wait in a platform-aware way:
+        ///  - Unity Editor (Play Mode): skips immediately so the UI is interactive right away.
+        ///  - Android device: two-phase wait — first for ARCore to be Ready (handles the
+        ///    camera-permission dialog race), then for SessionTracking.
+        /// </summary>
+        private IEnumerator WaitForARSession()
+        {
+#if UNITY_EDITOR
+            // No AR hardware in the Editor — skip the wait so Play Mode is immediately usable.
+            Debug.LogWarning("[AuraSync] SceneBootstrapper: Unity Editor detected — skipping AR wait. " +
+                             "UI will be interactive immediately.");
+            yield break;
+#else
+            // ── Phase 1: Wait up to 30 s for ARCore to be Ready ──
+            // (covers the camera-permission dialog appearing right after launch)
+            float readyTimeout = 30f;
+            float readyElapsed = 0f;
+
+            while (ARSession.state < ARSessionState.Ready
+                   && ARSession.state != ARSessionState.Unsupported
+                   && readyElapsed < readyTimeout)
+            {
+                readyElapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            if (ARSession.state == ARSessionState.Unsupported)
+            {
+                Debug.LogWarning("[AuraSync] SceneBootstrapper: ARCore not supported on this device.");
+                yield break;
+            }
+
+            if (ARSession.state < ARSessionState.Ready)
+            {
+                Debug.LogWarning($"[AuraSync] SceneBootstrapper: ARCore not Ready after {readyTimeout}s " +
+                                 $"(state={ARSession.state}). Camera permission may have been denied.");
+                yield break;   // proceed to restore anyway
+            }
+
+            Debug.Log($"[AuraSync] SceneBootstrapper: ARCore Ready after {readyElapsed:F1}s. " +
+                      "Now waiting for plane tracking...");
+
+            // ── Phase 2: Wait up to 15 s for SessionTracking ──
+            float trackTimeout = 15f;
+            float trackElapsed = 0f;
+
+            while (ARSession.state < ARSessionState.SessionTracking && trackElapsed < trackTimeout)
+            {
+                trackElapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            if (ARSession.state < ARSessionState.SessionTracking)
+                Debug.LogWarning("[AuraSync] SceneBootstrapper: AR tracking timeout — restoring anyway.");
+            else
+                Debug.Log("[AuraSync] SceneBootstrapper: AR session is tracking!");
+#endif
         }
     }
 }
