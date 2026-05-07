@@ -1,0 +1,346 @@
+using UnityEngine;
+
+/// <summary>
+/// A self-instantiating fake scanner UI that mimics a cloud-based 3D scanning pipeline.
+/// Automatically creates itself after scene load — no manual setup required.
+/// Scales UI proportionally for high-resolution Android screens.
+/// </summary>
+public class FakeScannerUI : MonoBehaviour
+{
+    // ─── State Machine ───────────────────────────────────────────────
+    private enum State
+    {
+        Idle,       // Showing the "Scan Environment" button
+        Loading,    // Cycling through fake status messages
+        Complete    // Showing the "Scan Complete" result
+    }
+
+    private State _state = State.Idle;
+    private float _loadingStartTime;
+
+    // ─── Loading-phase message schedule ──────────────────────────────
+    private static readonly (float time, string message)[] LoadingMessages = new[]
+    {
+        (0f,  "Initializing Cloud Architecture..."),
+        (3f,  "Uploading Payload..."),
+        (6f,  "Running Pose Estimation..."),
+        (9f,  "Generating Gaussian Splats...")
+    };
+
+    private const float TotalLoadDuration = 10f;
+
+    // ─── Cached GUIStyles (built once) ───────────────────────────────
+    private GUIStyle _scanButtonStyle;
+    private GUIStyle _statusTextStyle;
+    private GUIStyle _abortButtonStyle;
+    private GUIStyle _closeButtonStyle;
+    private Texture2D _darkOverlayTex;
+    private Texture2D _buttonNormalTex;
+    private Texture2D _buttonHoverTex;
+    private Texture2D _buttonActiveTex;
+    private Texture2D _abortNormalTex;
+    private Texture2D _abortHoverTex;
+    private Texture2D _closeNormalTex;
+    private Texture2D _closeHoverTex;
+    private bool _stylesInitialized;
+
+    // ─── Auto-instantiation ──────────────────────────────────────────
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+    private static void AutoCreate()
+    {
+        var go = new GameObject("[FakeScannerUI]");
+        go.AddComponent<FakeScannerUI>();
+        DontDestroyOnLoad(go);
+    }
+
+    // ─── Helper: create a solid-color 2×2 texture ────────────────────
+    private static Texture2D MakeTex(Color color)
+    {
+        var tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        tex.hideFlags = HideFlags.HideAndDontSave;
+        var pixels = new Color[] { color, color, color, color };
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
+    }
+
+    // ─── Build all styles once ───────────────────────────────────────
+    private void InitStyles()
+    {
+        if (_stylesInitialized) return;
+        _stylesInitialized = true;
+
+        // Textures
+        _darkOverlayTex = MakeTex(new Color(0.05f, 0.05f, 0.08f, 0.92f));
+        _buttonNormalTex = MakeTex(new Color(0.10f, 0.55f, 0.95f, 1f));   // vibrant blue
+        _buttonHoverTex  = MakeTex(new Color(0.20f, 0.65f, 1.00f, 1f));   // lighter blue
+        _buttonActiveTex = MakeTex(new Color(0.05f, 0.40f, 0.80f, 1f));   // pressed blue
+        _abortNormalTex  = MakeTex(new Color(0.85f, 0.20f, 0.20f, 1f));   // red
+        _abortHoverTex   = MakeTex(new Color(1.00f, 0.30f, 0.30f, 1f));
+        _closeNormalTex  = MakeTex(new Color(0.18f, 0.75f, 0.35f, 1f));   // green
+        _closeHoverTex   = MakeTex(new Color(0.25f, 0.85f, 0.45f, 1f));
+
+        // ── "Scan Environment" button ────────────────────────────────
+        _scanButtonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize  = Mathf.RoundToInt(Screen.height * 0.032f),
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter,
+            wordWrap  = false
+        };
+        _scanButtonStyle.normal.background  = _buttonNormalTex;
+        _scanButtonStyle.normal.textColor   = Color.white;
+        _scanButtonStyle.hover.background   = _buttonHoverTex;
+        _scanButtonStyle.hover.textColor    = Color.white;
+        _scanButtonStyle.active.background  = _buttonActiveTex;
+        _scanButtonStyle.active.textColor   = new Color(0.9f, 0.9f, 0.9f);
+        _scanButtonStyle.border             = new RectOffset(0, 0, 0, 0);
+        _scanButtonStyle.padding            = new RectOffset(20, 20, 12, 12);
+
+        // ── Status text ──────────────────────────────────────────────
+        _statusTextStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize  = Mathf.RoundToInt(Screen.height * 0.030f),
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter,
+            wordWrap  = true
+        };
+        _statusTextStyle.normal.textColor = Color.white;
+
+        // ── Abort button ─────────────────────────────────────────────
+        _abortButtonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize  = Mathf.RoundToInt(Screen.height * 0.022f),
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter
+        };
+        _abortButtonStyle.normal.background = _abortNormalTex;
+        _abortButtonStyle.normal.textColor  = Color.white;
+        _abortButtonStyle.hover.background  = _abortHoverTex;
+        _abortButtonStyle.hover.textColor   = Color.white;
+        _abortButtonStyle.active.background = _abortNormalTex;
+        _abortButtonStyle.active.textColor  = new Color(0.85f, 0.85f, 0.85f);
+        _abortButtonStyle.border            = new RectOffset(0, 0, 0, 0);
+        _abortButtonStyle.padding           = new RectOffset(16, 16, 8, 8);
+
+        // ── Close button ─────────────────────────────────────────────
+        _closeButtonStyle = new GUIStyle(GUI.skin.button)
+        {
+            fontSize  = Mathf.RoundToInt(Screen.height * 0.026f),
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter
+        };
+        _closeButtonStyle.normal.background = _closeNormalTex;
+        _closeButtonStyle.normal.textColor  = Color.white;
+        _closeButtonStyle.hover.background  = _closeHoverTex;
+        _closeButtonStyle.hover.textColor   = Color.white;
+        _closeButtonStyle.active.background = _closeNormalTex;
+        _closeButtonStyle.active.textColor  = new Color(0.85f, 0.85f, 0.85f);
+        _closeButtonStyle.border            = new RectOffset(0, 0, 0, 0);
+        _closeButtonStyle.padding           = new RectOffset(16, 16, 10, 10);
+    }
+
+    // ─── Reset back to idle ──────────────────────────────────────────
+    private void ResetToIdle()
+    {
+        _state = State.Idle;
+    }
+
+    // ─── Determine current loading message ───────────────────────────
+    private string GetCurrentLoadingMessage()
+    {
+        float elapsed = Time.realtimeSinceStartup - _loadingStartTime;
+        string msg = LoadingMessages[0].message;
+
+        for (int i = LoadingMessages.Length - 1; i >= 0; i--)
+        {
+            if (elapsed >= LoadingMessages[i].time)
+            {
+                msg = LoadingMessages[i].message;
+                break;
+            }
+        }
+
+        return msg;
+    }
+
+    // ─── OnGUI ───────────────────────────────────────────────────────
+    private void OnGUI()
+    {
+        InitStyles();
+
+        // ── Resolution-independent scaling ───────────────────────────
+        // Design for a reference height of 1080. On a 2160px phone this
+        // gives scaleFactor = 2, keeping everything finger-friendly.
+        float referenceHeight = 1080f;
+        float scaleFactor = Screen.height / referenceHeight;
+
+        // Scale the entire GUI uniformly from the top-left corner.
+        Matrix4x4 previousMatrix = GUI.matrix;
+        GUI.matrix = Matrix4x4.TRS(Vector3.zero,
+                                    Quaternion.identity,
+                                    new Vector3(scaleFactor, scaleFactor, 1f));
+
+        // Virtual (design-space) dimensions after scaling
+        float vw = Screen.width  / scaleFactor;
+        float vh = Screen.height / scaleFactor;
+
+        switch (_state)
+        {
+            case State.Idle:
+                DrawIdleUI(vw, vh);
+                break;
+
+            case State.Loading:
+                float elapsed = Time.realtimeSinceStartup - _loadingStartTime;
+                if (elapsed >= TotalLoadDuration)
+                {
+                    _state = State.Complete;
+                    goto case State.Complete;   // draw immediately
+                }
+                DrawLoadingUI(vw, vh);
+                break;
+
+            case State.Complete:
+                DrawCompleteUI(vw, vh);
+                break;
+        }
+
+        // Restore matrix
+        GUI.matrix = previousMatrix;
+    }
+
+    // ─── Idle: large "Scan Environment" button at the bottom ─────────
+    private void DrawIdleUI(float vw, float vh)
+    {
+        float btnW = vw * 0.70f;
+        float btnH = vh * 0.072f;
+        float btnX = (vw - btnW) * 0.5f;
+        float btnY = vh - btnH - vh * 0.08f;
+
+        if (GUI.Button(new Rect(btnX, btnY, btnW, btnH), "Scan Environment", _scanButtonStyle))
+        {
+            _state = State.Loading;
+            _loadingStartTime = Time.realtimeSinceStartup;
+        }
+    }
+
+    // ─── Loading: dark overlay + cycling messages + abort button ──────
+    private void DrawLoadingUI(float vw, float vh)
+    {
+        // Full-screen dark overlay
+        GUI.DrawTexture(new Rect(0, 0, vw, vh), _darkOverlayTex, ScaleMode.StretchToFill);
+
+        // Animated dots for visual flair
+        int dotCount = (Mathf.FloorToInt(Time.realtimeSinceStartup * 2f) % 4);
+        string dots = new string('.', dotCount);
+
+        string message = GetCurrentLoadingMessage();
+
+        // Pulsating alpha on the text for a subtle "alive" feeling
+        float pulse = 0.75f + 0.25f * Mathf.Sin(Time.realtimeSinceStartup * 3f);
+        Color originalColor = _statusTextStyle.normal.textColor;
+        _statusTextStyle.normal.textColor = new Color(1f, 1f, 1f, pulse);
+
+        // Status text — centered on screen
+        float textW = vw * 0.85f;
+        float textH = vh * 0.15f;
+        float textX = (vw - textW) * 0.5f;
+        float textY = vh * 0.38f;
+        GUI.Label(new Rect(textX, textY, textW, textH), message + dots, _statusTextStyle);
+
+        // Restore text color
+        _statusTextStyle.normal.textColor = originalColor;
+
+        // Progress bar
+        float elapsed = Time.realtimeSinceStartup - _loadingStartTime;
+        float progress = Mathf.Clamp01(elapsed / TotalLoadDuration);
+        float barW = vw * 0.60f;
+        float barH = 6f;
+        float barX = (vw - barW) * 0.5f;
+        float barY = textY + textH + 10f;
+
+        // Bar background
+        GUI.DrawTexture(new Rect(barX, barY, barW, barH),
+                        MakeTex(new Color(1f, 1f, 1f, 0.15f)),
+                        ScaleMode.StretchToFill);
+        // Bar fill
+        GUI.DrawTexture(new Rect(barX, barY, barW * progress, barH),
+                        _buttonNormalTex,
+                        ScaleMode.StretchToFill);
+
+        // Abort button — below the progress bar
+        float abortW = vw * 0.30f;
+        float abortH = vh * 0.050f;
+        float abortX = (vw - abortW) * 0.5f;
+        float abortY = barY + barH + vh * 0.04f;
+
+        if (GUI.Button(new Rect(abortX, abortY, abortW, abortH), "Abort", _abortButtonStyle))
+        {
+            ResetToIdle();
+        }
+
+        // Force continuous repaints so the animation is smooth
+        // (OnGUI is only called on events by default on some platforms)
+    }
+
+    // ─── Complete: success message + close button ────────────────────
+    private void DrawCompleteUI(float vw, float vh)
+    {
+        // Full-screen dark overlay
+        GUI.DrawTexture(new Rect(0, 0, vw, vh), _darkOverlayTex, ScaleMode.StretchToFill);
+
+        // Checkmark / success color
+        _statusTextStyle.normal.textColor = new Color(0.35f, 1f, 0.55f, 1f);
+
+        float textW = vw * 0.85f;
+        float textH = vh * 0.18f;
+        float textX = (vw - textW) * 0.5f;
+        float textY = vh * 0.35f;
+        GUI.Label(new Rect(textX, textY, textW, textH),
+                  "✓  Scan Complete.\nView 3D Model on Web Endpoint.",
+                  _statusTextStyle);
+
+        // Reset text color
+        _statusTextStyle.normal.textColor = Color.white;
+
+        // Close button
+        float closeW = vw * 0.35f;
+        float closeH = vh * 0.060f;
+        float closeX = (vw - closeW) * 0.5f;
+        float closeY = textY + textH + vh * 0.03f;
+
+        if (GUI.Button(new Rect(closeX, closeY, closeW, closeH), "Close", _closeButtonStyle))
+        {
+            ResetToIdle();
+        }
+    }
+
+    // ─── Keep repainting every frame for smooth animations ───────────
+    private void Update()
+    {
+        // Only force repaints during animated states
+        if (_state == State.Loading)
+        {
+            // Check for completion in Update as well
+            float elapsed = Time.realtimeSinceStartup - _loadingStartTime;
+            if (elapsed >= TotalLoadDuration)
+            {
+                _state = State.Complete;
+            }
+        }
+    }
+
+    // ─── Cleanup textures on destroy ─────────────────────────────────
+    private void OnDestroy()
+    {
+        Texture2D[] textures = {
+            _darkOverlayTex, _buttonNormalTex, _buttonHoverTex, _buttonActiveTex,
+            _abortNormalTex, _abortHoverTex, _closeNormalTex, _closeHoverTex
+        };
+        foreach (var tex in textures)
+        {
+            if (tex != null) Destroy(tex);
+        }
+    }
+}
