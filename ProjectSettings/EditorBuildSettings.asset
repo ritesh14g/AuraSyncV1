@@ -8,6 +8,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/V1.unity
     guid: 11ff7c11414ba9b41ae9e79c5fdc80ef
+  - enabled: 1
+    path: Assets/Scenes/SpaceScene.unity
+    guid: d6848736cb3f1d646afbdf6e696e1fe5
   m_configObjects:
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: a3f558e6bfef8bf439f33483be603e1b, type: 2}
     UnityEditor.XR.ARKit.ARKitSettings: {fileID: 11400000, guid: 0158bd47d62992145bb37288cf06171d, type: 2}
