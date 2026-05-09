@@ -135,7 +135,7 @@ namespace AuraSync.Core
             {
                 // Horizontal drag rotates around world Y axis
                 float yRotation = delta.x * rotateSpeed;
-                SelectedObject.transform.Rotate(Vector3.up, yRotation, Space.World);
+                SelectedObject.transform.Rotate(Vector3.up, yRotation, UnityEngine.Space.World);
             }
 
             _isTransforming = true;

@@ -1,4 +1,7 @@
 using UnityEngine;
+using System.Collections;
+using AuraSync.Data;
+using AuraSync.Core;
 using Photon.Pun;
 using Photon.Realtime;
 
@@ -39,7 +42,7 @@ namespace AuraSync.Networking
         public override void OnConnectedToMaster()
         {
             Debug.Log("[AuraSync Network] Connected to Master. Joining room...");
-            RoomOptions roomOptions = new RoomOptions { MaxPlayers = 20 };
+            RoomOptions roomOptions = new RoomOptions { MaxPlayers = 5 };
             PhotonNetwork.JoinOrCreateRoom(roomName, roomOptions, TypedLobby.Default);
         }
 
