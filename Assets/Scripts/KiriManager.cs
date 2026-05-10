@@ -4,6 +4,20 @@ using UnityEngine;
 
 public class KiriManager : MonoBehaviour
 {
+    public static KiriManager Instance { get; private set; }
+
+    private void Awake()
+    {
+        if (Instance != null && Instance != this)
+        {
+            Destroy(this);
+        }
+        else
+        {
+            Instance = this;
+        }
+    }
+
     public event Action<string> OnModelReady;
     public event Action<float> OnProgress;
 
