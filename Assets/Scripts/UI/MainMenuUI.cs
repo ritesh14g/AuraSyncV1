@@ -51,24 +51,37 @@ namespace AuraSync.UI
 
         void Awake()
         {
-            _appState    = FindObjectOfType<AppStateManager>();
-            _sheetHeight = bottomSheet.sizeDelta.y;
+            _appState = FindObjectOfType<AppStateManager>();
 
             fabButton.onClick.AddListener(OnFABPressed);
-            cancelButton.onClick.AddListener(CloseSheet);
-            noteButton.onClick.AddListener(OnNotePressed);
-            objectButton.onClick.AddListener(OnObjectPressed);
+            cancelButton?.onClick.AddListener(CloseSheet);
+            noteButton?.onClick.AddListener(OnNotePressed);
+            objectButton?.onClick.AddListener(OnObjectPressed);
 
-            // Backdrop tap closes sheet
-            backdrop.raycastTarget = true;
-            var bd = backdrop.gameObject.GetComponent<Button>()
-                  ?? backdrop.gameObject.AddComponent<Button>();
-            bd.transition = Selectable.Transition.None;
-            bd.onClick.AddListener(CloseSheet);
+            // Backdrop tap closes sheet — but does NOT block raycasts until opened
+            if (backdrop != null)
+            {
+                backdrop.raycastTarget = false; // OFF by default so it never blocks clicks
+                var bd = backdrop.gameObject.GetComponent<Button>()
+                      ?? backdrop.gameObject.AddComponent<Button>();
+                bd.transition = Selectable.Transition.None;
+                bd.onClick.AddListener(CloseSheet);
+            }
 
             // Cache FAB label if present (optional)
             _fabLabel = fabButton.GetComponentInChildren<TextMeshProUGUI>();
+        }
 
+        void Start()
+        {
+            // CRITICAL: sizeDelta is 0 during Awake because the layout hasn't run.
+            // We must read it in Start (or later) after Unity has computed it.
+            UnityEngine.UI.LayoutRebuilder.ForceRebuildLayoutImmediate(
+                bottomSheet.GetComponent<RectTransform>() ?? bottomSheet);
+            _sheetHeight = bottomSheet.sizeDelta.y;
+            if (_sheetHeight <= 0f) _sheetHeight = 320f; // safe fallback
+
+            // Now we can safely hide the sheet below the screen
             HideImmediate();
         }
 
@@ -149,6 +162,7 @@ namespace AuraSync.UI
                 backdropGroup.alpha          = 1f;
                 backdropGroup.interactable   = false;
                 backdropGroup.blocksRaycasts = true;
+                if (backdrop != null) backdrop.raycastTarget = true;
                 sheetGroup.interactable      = true;
                 sheetGroup.blocksRaycasts    = true;
             }
@@ -181,6 +195,7 @@ namespace AuraSync.UI
                 sheetGroup.blocksRaycasts    = false;
                 backdropGroup.interactable   = false;
                 backdropGroup.blocksRaycasts = false;
+                if (backdrop != null) backdrop.raycastTarget = false;
             }
         }
 

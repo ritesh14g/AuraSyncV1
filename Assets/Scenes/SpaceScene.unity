@@ -1689,6 +1689,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1878687504}
   - component: {fileID: 1878687505}
+  - component: {fileID: 1878687507}
+  - component: {fileID: 1878687506}
   m_Layer: 0
   m_Name: SpaceSceneManager
   m_TagString: Untagged
@@ -1723,6 +1725,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e60b60044940e054da5c77af27384d01, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  materialHelper: {fileID: 1878687507}
   modelAnchor: {fileID: 1671673851}
   modelNameLabel: {fileID: 1276235508}
   backButton: {fileID: 4734634}
@@ -1731,6 +1734,39 @@ MonoBehaviour:
   loadingOverlay: {fileID: 1128477261}
   loadingLabel: {fileID: 1268326690}
   mainSceneName: V1
+--- !u!114 &1878687506
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1878687503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a5ccac13a0afc06419d8f1e0fe840bb7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  modelRoot: {fileID: 0}
+  rotationSpeed: 0.3
+  rotationSmoothing: 8
+  zoomSpeed: 0.01
+  minScale: 0.05
+  maxScale: 5
+  panSpeed: 0.003
+--- !u!114 &1878687507
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1878687503}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5d1ca2071e1eb0046aabc4f548f219f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  fallbackMaterial: {fileID: 2100000, guid: 4cdfb9af7bc1ef441b0d984b1afdb72c, type: 2}
+  debugLogging: 1
 --- !u!1 &1958291792
 GameObject:
   m_ObjectHideFlags: 0

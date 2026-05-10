@@ -53,6 +53,7 @@ namespace AuraSync.UI
             bottomSheet.anchoredPosition = new Vector2(0, -_sheetHeight);
             sheetGroup.alpha    = 0f;  sheetGroup.interactable    = false;  sheetGroup.blocksRaycasts    = false;
             backdropGroup.alpha = 0f;  backdropGroup.interactable = false;  backdropGroup.blocksRaycasts = false;
+            if (backdrop != null) backdrop.raycastTarget = false;
         }
 
         public void OpenSheet()
@@ -82,6 +83,7 @@ namespace AuraSync.UI
             if (open)
             {
                 backdropGroup.alpha = 1f; backdropGroup.blocksRaycasts = true; backdropGroup.interactable = false;
+                if (backdrop != null) backdrop.raycastTarget = true;
                 sheetGroup.interactable = true; sheetGroup.blocksRaycasts = true;
             }
 
@@ -111,6 +113,7 @@ namespace AuraSync.UI
             {
                 sheetGroup.interactable = false;    sheetGroup.blocksRaycasts = false;
                 backdropGroup.interactable = false; backdropGroup.blocksRaycasts = false;
+                if (backdrop != null) backdrop.raycastTarget = false;
             }
         }
     }

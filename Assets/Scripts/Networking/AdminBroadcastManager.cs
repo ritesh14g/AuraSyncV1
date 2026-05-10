@@ -34,9 +34,7 @@ namespace AuraSync.Networking
 
         void Start()
         {
-            // MOCK: find any object tagged "MockModel" for testing before M2 delivers real model
-            var mock = GameObject.FindWithTag("MockModel");
-            if (mock != null) SetBroadcastTarget(mock.transform);
+            // Target is now assigned dynamically by SpaceSceneManager when model loads.
         }
 
         public void SetBroadcastTarget(Transform modelTransform)
@@ -93,17 +91,9 @@ namespace AuraSync.Networking
         {
             if (_modelTransform == null)
             {
-                // Try to find it if not set
-                var mock = GameObject.FindWithTag("MockModel");
-                if (mock != null) 
-                {
-                    _modelTransform = mock.transform;
-                }
-                else
-                {
-                    Debug.LogWarning("[AuraSync] AdminBroadcast: Model transform is null on receiver. No MockModel found.");
-                    return;
-                }
+                // If target isn't set yet, we can't apply updates. 
+                // This is normal if the model is still loading.
+                return;
             }
 
             _modelTransform.position = new Vector3(pos[0], pos[1], pos[2]);

@@ -44,6 +44,7 @@ namespace AuraSync.UI
             bottomSheet.anchoredPosition = new Vector2(0, -_sheetHeight);
             SetGroupActive(sheetGroup, false);
             SetGroupActive(backdropGroup, false);
+            if (backdrop != null) backdrop.raycastTarget = false;
 
             // Wire buttons
             spaceButton?.onClick.AddListener(OpenSheet);
@@ -91,6 +92,7 @@ namespace AuraSync.UI
             {
                 SetGroupActive(sheetGroup, true);
                 SetGroupActive(backdropGroup, true);
+                if (backdrop != null) backdrop.raycastTarget = true;
             }
 
             float t = 0f;
@@ -115,6 +117,7 @@ namespace AuraSync.UI
             {
                 SetGroupActive(sheetGroup, false);
                 SetGroupActive(backdropGroup, false);
+                if (backdrop != null) backdrop.raycastTarget = false;
             }
 
             _animCoroutine = null;

@@ -37,38 +37,46 @@ namespace AuraSync.UI
             new ModelEntry { displayName = "Jet Engine", fileName = "JetEngine.glb", description = "Aircraft Propulsion"   },
         };
 
+        private bool _isOpen = false;
+        private Coroutine _fadeCoroutine;
+
         void Awake()
         {
-            HideImmediate();
+            // Force hide on startup so it doesn't block the main AR view
+            SetPanelActive(false);
             backButton?.onClick.AddListener(ClosePanel);
-        }
-
-        private void HideImmediate()
-        {
-            if (panelGroup == null) return;
-            panelGroup.alpha = 0;
-            panelGroup.interactable = false;
-            panelGroup.blocksRaycasts = false;
         }
 
         public void OpenPanel()
         {
-            if (panelGroup == null) return;
-            panelGroup.alpha = 1;
-            panelGroup.interactable = true;
-            panelGroup.blocksRaycasts = true;
+            if (_isOpen) return;
+            _isOpen = true;
             
+            gameObject.SetActive(true);
+            SetPanelActive(true);
             BuildGrid();
             Debug.Log("[AuraSync] ModelRepository: Panel Opened");
         }
 
         public void ClosePanel()
         {
-            if (panelGroup == null) return;
-            panelGroup.alpha = 0;
-            panelGroup.interactable = false;
-            panelGroup.blocksRaycasts = false;
+            if (!_isOpen) return;
+            _isOpen = false;
+            SetPanelActive(false);
             Debug.Log("[AuraSync] ModelRepository: Panel Closed");
+        }
+
+        private void SetPanelActive(bool active)
+        {
+            if (panelGroup != null)
+            {
+                panelGroup.alpha = active ? 1f : 0f;
+                panelGroup.interactable = active;
+                panelGroup.blocksRaycasts = active;
+            }
+            
+            // Also toggle the GameObject if no group exists, or as a safety
+            if (!active && panelGroup == null) gameObject.SetActive(false);
         }
 
         private void BuildGrid()

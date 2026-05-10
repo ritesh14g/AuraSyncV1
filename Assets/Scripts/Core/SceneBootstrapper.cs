@@ -39,13 +39,32 @@ namespace AuraSync
 
         private IEnumerator InitializeWithDelay()
         {
+            // --- EDITOR BYPASS ---
+            // Force UI to be interactive immediately in the Editor
+            #if UNITY_EDITOR
+            if (AppStateManager.Instance != null)
+            {
+                AppStateManager.Instance.SetMode(AppMode.Idle);
+                Debug.Log("[AuraSync] Editor Bypass: UI forced to Idle mode.");
+            }
+            
+            // AUTO-FIX EventSystem for Unity 2022
+            var es = FindObjectOfType<UnityEngine.EventSystems.EventSystem>();
+            if (es != null && es.GetComponent("StandaloneInputModule") != null && UnityEngine.InputSystem.InputSystem.settings != null)
+            {
+                Destroy(es.GetComponent("StandaloneInputModule"));
+                es.gameObject.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+                Debug.Log("[AuraSync] Editor Bypass: Upgraded EventSystem to New Input System Module.");
+            }
+            #endif
+
             Debug.Log("[AuraSync] SceneBootstrapper: Waiting for AR session to begin tracking...");
 
             // Delegate platform-specific AR wait to a helper so Play Mode works immediately
             yield return StartCoroutine(WaitForARSession());
 
             // Wait one extra frame so all Awake()/Start() on other scripts have run
-            yield return new WaitForEndOfFrame();
+            yield return null;
 
             if (PersistenceManager.Instance == null)
             {
@@ -90,8 +109,8 @@ namespace AuraSync
 
             if (ARSession.state == ARSessionState.Unsupported)
             {
-                Debug.LogWarning("[AuraSync] SceneBootstrapper: ARCore not supported on this device.");
-                yield break;
+                Debug.LogWarning("[AuraSync] SceneBootstrapper: ARCore not supported on this device. Enabling UI for non-AR features.");
+                // We don't yield break here anymore! We let it fall through to initialize the UI.
             }
 
             if (ARSession.state < ARSessionState.Ready)
