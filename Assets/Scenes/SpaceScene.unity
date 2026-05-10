@@ -1730,7 +1730,7 @@ MonoBehaviour:
   hintLabel: {fileID: 1210352984}
   loadingOverlay: {fileID: 1128477261}
   loadingLabel: {fileID: 1268326690}
-  mainSceneName: MainScene
+  mainSceneName: V1
 --- !u!1 &1958291792
 GameObject:
   m_ObjectHideFlags: 0

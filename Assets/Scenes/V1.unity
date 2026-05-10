@@ -9860,8 +9860,9 @@ GameObject:
   - component: {fileID: 1643730515}
   - component: {fileID: 1643730514}
   - component: {fileID: 1643730513}
+  - component: {fileID: 1643730516}
   m_Layer: 5
-  m_Name: ModelRepositporyPanel
+  m_Name: ModelRepositoryPanel
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -9901,7 +9902,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   panel: {fileID: 1643730512}
-  panelGroup: {fileID: 1810317977}
+  panelGroup: {fileID: 1643730516}
   backButton: {fileID: 911855468}
   gridContainer: {fileID: 1770212858}
   modelCardPrefab: {fileID: 6529617236384355229, guid: fb2d91131291d9d4bbeab9a3366ed361, type: 3}
@@ -9944,6 +9945,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1643730511}
   m_CullTransparentMesh: 1
+--- !u!225 &1643730516
+CanvasGroup:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1643730511}
+  m_Enabled: 1
+  m_Alpha: 0
+  m_Interactable: 0
+  m_BlocksRaycasts: 0
+  m_IgnoreParentGroups: 0
 --- !u!1 &1649934335
 GameObject:
   m_ObjectHideFlags: 0
@@ -11907,7 +11920,6 @@ GameObject:
   - component: {fileID: 1810317976}
   - component: {fileID: 1810317979}
   - component: {fileID: 1810317978}
-  - component: {fileID: 1810317977}
   m_Layer: 5
   m_Name: PanelBg
   m_TagString: Untagged
@@ -11934,18 +11946,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!225 &1810317977
-CanvasGroup:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1810317975}
-  m_Enabled: 1
-  m_Alpha: 0
-  m_Interactable: 0
-  m_BlocksRaycasts: 0
-  m_IgnoreParentGroups: 0
 --- !u!114 &1810317978
 MonoBehaviour:
   m_ObjectHideFlags: 0
