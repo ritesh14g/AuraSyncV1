@@ -1,17 +1,38 @@
-using UnityEngine;
 using System;
+using System.Collections;
+using UnityEngine;
 
-public class KiriManager : MonoBehaviour {
-    public static KiriManager Instance;
+public class KiriManager : MonoBehaviour
+{
+    public event Action<string> OnModelReady;
+    public event Action<float> OnProgress;
 
-    private void Awake() {
-        if (Instance == null) Instance = this;
+    public void StartCapture()
+    {
+        Debug.Log("[KiriManager] StartCapture called. Beginning mock 3D model processing pipeline...");
+        StartCoroutine(MockProcessingRoutine());
     }
 
-    public void StartCapture() {
-        // We will add the mock timer here in the next step
-    }
+    private IEnumerator MockProcessingRoutine()
+    {
+        float duration = 10f;
+        float elapsed = 0f;
 
-    public event Action<string> OnModelReady;  // returns .glb URL — M4 listens
-    public event Action<float>  OnProgress;    // 0-1 progress — UI listens
+        while (elapsed < duration)
+        {
+            elapsed += Time.deltaTime;
+            float progress = Mathf.Clamp01(elapsed / duration);
+            
+            // Fire the progress event
+            OnProgress?.Invoke(progress);
+            
+            // Wait for the next frame
+            yield return null;
+        }
+
+        Debug.Log("[KiriManager] Mock processing complete. Firing OnModelReady event.");
+        
+        // Fire the model ready event with the hardcoded mock file path
+        OnModelReady?.Invoke("file://C:/MockData/sample_model.glb");
+    }
 }
