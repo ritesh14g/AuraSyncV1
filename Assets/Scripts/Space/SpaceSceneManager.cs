@@ -29,7 +29,17 @@ namespace AuraSync.Space
         void Start()
         {
             string filename = PlayerPrefs.GetString("SelectedModelFile", "House.glb");
-            string fullPath = System.IO.Path.Combine(Application.streamingAssetsPath, "Models", filename);
+            string fullPath;
+            
+            // If the database gave us a web URL, use it directly. Otherwise, look in StreamingAssets.
+            if (filename.StartsWith("http://") || filename.StartsWith("https://"))
+            {
+                fullPath = filename;
+            }
+            else
+            {
+                fullPath = System.IO.Path.Combine(Application.streamingAssetsPath, "Models", filename);
+            }
             
             if (modelNameLabel) modelNameLabel.text = filename.Replace(".glb", "").Replace(".gltf", "");
             if (loadingOverlay) loadingOverlay.SetActive(true);

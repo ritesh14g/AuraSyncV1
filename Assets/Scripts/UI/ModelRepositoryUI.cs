@@ -31,20 +31,15 @@ namespace AuraSync.UI
             public string description;
         }
 
-        private List<ModelEntry> _models = new List<ModelEntry>
-        {
-            new ModelEntry { displayName = "House",      fileName = "House.glb",     description = "Residential Structure" },
-            new ModelEntry { displayName = "Jet Engine", fileName = "JetEngine.glb", description = "Aircraft Propulsion"   },
-        };
-
+        private List<ModelEntry> _models = new List<ModelEntry>();
         private bool _isOpen = false;
-        private Coroutine _fadeCoroutine;
+        private bool _isInitialized = false;
 
         void Awake()
         {
             // Force hide on startup so it doesn't block the main AR view
             SetPanelActive(false);
-            backButton?.onClick.AddListener(ClosePanel);
+            if (backButton != null) backButton.onClick.AddListener(ClosePanel);
         }
 
         public void OpenPanel()
@@ -54,7 +49,9 @@ namespace AuraSync.UI
             
             gameObject.SetActive(true);
             SetPanelActive(true);
-            BuildGrid();
+            
+            // Refresh models from Firestore when panel opens
+            RefreshModelsFromDatabase();
             Debug.Log("[AuraSync] ModelRepository: Panel Opened");
         }
 
@@ -77,6 +74,69 @@ namespace AuraSync.UI
             
             // Also toggle the GameObject if no group exists, or as a safety
             if (!active && panelGroup == null) gameObject.SetActive(false);
+        }
+
+        public void RefreshModelsFromDatabase()
+        {
+            if (FirestoreManager.Instance == null)
+            {
+                Debug.LogWarning("[ModelRepositoryUI] FirestoreManager is not in the scene! Cannot load models.");
+                return;
+            }
+
+            // Fetch from database
+            FirestoreManager.Instance.GetAllModels((dbModels) => 
+            {
+                // If database is empty, seed it with the default models so they are stored there
+                if (dbModels.Count == 0 && !_isInitialized)
+                {
+                    _isInitialized = true;
+                    Debug.Log("[ModelRepositoryUI] Database is empty. Seeding default models...");
+                    SeedDefaultModels();
+                    return; // SeedDefaultModels will trigger a refresh when done
+                }
+
+                _models.Clear();
+                foreach (var dbm in dbModels)
+                {
+                    _models.Add(new ModelEntry 
+                    { 
+                        displayName = dbm.name, 
+                        fileName = dbm.glbUrl, 
+                        description = dbm.thumbnailUrl 
+                    });
+                }
+                BuildGrid();
+            });
+        }
+
+        private void SeedDefaultModels()
+        {
+            ModelData house = new ModelData { name = "House", glbUrl = "House.glb", thumbnailUrl = "Residential Structure" };
+            ModelData jet = new ModelData { name = "Jet Engine", glbUrl = "JetEngine.glb", thumbnailUrl = "Aircraft Propulsion" };
+            
+            FirestoreManager.Instance.SaveModel(house);
+            FirestoreManager.Instance.SaveModel(jet);
+
+            // Wait a moment for save to complete, then refresh
+            Invoke(nameof(RefreshModelsFromDatabase), 1.5f);
+        }
+
+        // Link this method to your "Create Model" button in the Unity Inspector
+        public void CreateNewModel()
+        {
+            Debug.Log("[ModelRepositoryUI] Creating new model and saving to database...");
+            ModelData newModel = new ModelData 
+            { 
+                name = "New Scan " + Random.Range(10, 99), 
+                glbUrl = "NewModel.glb", 
+                thumbnailUrl = "Newly Captured 3D Model" 
+            };
+            
+            FirestoreManager.Instance.SaveModel(newModel);
+            
+            // Wait briefly for save to complete before refreshing UI to show the new model
+            Invoke(nameof(RefreshModelsFromDatabase), 1.0f);
         }
 
         private void BuildGrid()
