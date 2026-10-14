@@ -7,3 +7,33 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.unitypackage filter=lfs diff=lfs merge=lfs -text
+
+# Unity YAML (scenes, prefabs, assets): merged with Unity's Smart Merge when configured:
+#   git config merge.unityyamlmerge.driver '"<Unity>/Editor/Data/Tools/UnityYAMLMerge.exe" merge -p %O %B %A %A'
+*.unity  merge=unityyamlmerge
+*.prefab merge=unityyamlmerge
+*.asset  merge=unityyamlmerge
+*.mat    merge=unityyamlmerge
+
+# Other binaries: never diff or convert line endings
+*.dll   binary
+*.so    binary
+*.aar   binary
+*.jar   binary
+*.a     binary
+*.pdf   binary
+*.chm   binary
+*.ttf   binary
+*.otf   binary
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.tga   binary
+*.psd   binary
+
+# GitHub language stats: count AuraSync's own code, not imported packages
+Assets/Photon/**          linguist-vendored
+Assets/TextMesh?Pro/**    linguist-vendored
+Assets/Plugins/**         linguist-vendored
+Assets/Samples/**         linguist-vendored
+Assets/XR/**              linguist-vendored
