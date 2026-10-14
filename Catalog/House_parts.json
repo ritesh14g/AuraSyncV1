@@ -1,0 +1,12 @@
+{
+    "version": 1,
+    "modelId": "house",
+    "glb": "House_mobile.glb",
+    "context": "Residential Structure",
+    "summary": "This is a 3D digital reconstruction of a historic, multi-story brick residential building featuring classic architectural details like gables and chimneys. Historically, structures like this served as private homes or multi-family apartments, providing shelter and living spaces for urban residents. It functions by utilizing load-bearing brick walls to support the weight of the upper floors and a complex roof system designed to shed rainwater and snow.",
+    "wholeModelOnly": true,
+    "generatedBy": "gemini-3.5-flash, gemini-3.8-flash, gemini-3.1-flash-lite",
+    "generatedAt": "2026-10-08",
+    "parts": [],
+    "assemblyOrder": []
+}

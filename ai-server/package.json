@@ -1,0 +1,13 @@
+{
+  "name": "aurasync-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "AuraSync AI server: a Cloudflare Worker that holds the AI keys for part chat, search and quizzes.",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "smoke": "node smoke-test.mjs",
+    "check": "wrangler deploy --dry-run --outdir .wrangler/dry-run",
+    "deploy": "wrangler deploy"
+  }
+}

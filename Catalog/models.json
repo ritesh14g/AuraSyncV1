@@ -1,0 +1,29 @@
+{
+  "baseUrl": "https://huggingface.co/datasets/Ritesh121/ARModels/resolve/main",
+  "models": [
+    {
+      "id": "house",
+      "name": "House",
+      "glbUrl": "House_mobile.glb",
+      "thumbnailUrl": "",
+      "description": "Residential Structure",
+      "createdAt": 1778351400,
+      "partsUrl": "House_parts.json",
+      "previewUrl": "House_preview.glb",
+      "previewBytes": 5091128,
+      "glbBytes": 7416460
+    },
+    {
+      "id": "jet-engine",
+      "name": "Jet Engine",
+      "glbUrl": "JetEngine_v2_mobile.glb",
+      "thumbnailUrl": "",
+      "description": "Aircraft Propulsion",
+      "createdAt": 1778351400,
+      "partsUrl": "JetEngine_v2_parts.json",
+      "previewUrl": "JetEngine_v2_preview.glb",
+      "previewBytes": 1412884,
+      "glbBytes": 13459060
+    }
+  ]
+}

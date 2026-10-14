@@ -1,0 +1,617 @@
+{
+    "version": 1,
+    "modelId": "jet-engine",
+    "glb": "JetEngine_v2_mobile.glb",
+    "context": "Turbofan Jet Engine",
+    "summary": "A turbofan jet engine is a type of gas turbine engine commonly used to power modern commercial and military aircraft. It works by pulling air into the engine using a large front fan, compressing it, and mixing it with fuel to ignite. The resulting high-pressure exhaust gases spin a turbine and shoot out the back to generate thrust, while some air bypasses the core to increase efficiency and reduce noise.",
+    "wholeModelOnly": false,
+    "generatedBy": "gemini-3.5-flash, gemini-3.8-flash",
+    "generatedAt": "2026-10-08",
+    "parts": [
+        {
+            "path": "0/0/0",
+            "node": "Object_2",
+            "label": "turbine casing",
+            "aliases": [
+                "turbine housing",
+                "turbine shroud",
+                "combustor casing",
+                "engine casing"
+            ],
+            "function": "It encloses the turbine section to contain the high-pressure, high-temperature gas flow and direct it efficiently through the turbine blades.",
+            "material": "nickel-based superalloy",
+            "connectsTo": [
+                "0/0/9",
+                "0/0/4/1",
+                "0/0/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -11111.7470703125,
+                    "y": 4272.26806640625,
+                    "z": 2659.993896484375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 2,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "turbine casing",
+                "aliases": [
+                    "turbine housing",
+                    "turbine shroud",
+                    "combustor casing",
+                    "engine casing"
+                ],
+                "function": "It encloses the turbine section to contain the high-pressure, high-temperature gas flow and direct it efficiently through the turbine blades.",
+                "material": "nickel-based superalloy",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/1",
+            "node": "Object_3",
+            "label": "exhaust nozzle",
+            "aliases": [
+                "exhaust duct",
+                "thrust nozzle",
+                "jet pipe",
+                "tailpipe"
+            ],
+            "function": "Channels and accelerates the high-velocity exhaust gases exiting the turbine rearward to generate propulsive thrust.",
+            "material": "heat-resistant nickel-chromium alloy (Inconel) or titanium",
+            "connectsTo": [
+                "0/0/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -14725.310546875,
+                    "y": 4262.080078125,
+                    "z": 2690.94287109375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 10,
+            "removeDirection": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "exhaust nozzle",
+                "aliases": [
+                    "exhaust duct",
+                    "thrust nozzle",
+                    "jet pipe",
+                    "tailpipe"
+                ],
+                "function": "Channels and accelerates the high-velocity exhaust gases exiting the turbine rearward to generate propulsive thrust.",
+                "material": "heat-resistant nickel-chromium alloy (Inconel) or titanium",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/2",
+            "node": "Object_4",
+            "label": "fan casing",
+            "aliases": [
+                "fan cowl",
+                "fan containment case",
+                "engine inlet casing",
+                "fan duct"
+            ],
+            "function": "Houses and protects the front fan blades, directing incoming airflow into the engine and containing any debris in the event of a blade failure.",
+            "material": "titanium alloy",
+            "connectsTo": [
+                "0/0/3",
+                "0/0/5",
+                "0/0/9"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -3652.412841796875,
+                    "y": 2885.38720703125,
+                    "z": 3197.677734375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 8,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "fan casing",
+                "aliases": [
+                    "fan cowl",
+                    "fan containment case",
+                    "engine inlet casing",
+                    "fan duct"
+                ],
+                "function": "Houses and protects the front fan blades, directing incoming airflow into the engine and containing any debris in the event of a blade failure.",
+                "material": "titanium alloy",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/3",
+            "node": "Object_5",
+            "label": "Inlet Guide Vanes",
+            "aliases": [
+                "stator vanes",
+                "guide vanes",
+                "stators",
+                "compressor stators"
+            ],
+            "function": "These stationary blades guide and redirect the incoming airflow at the optimal angle into the compressor or fan blades to maximize efficiency and prevent aerodynamic stalling.",
+            "material": "Titanium alloy",
+            "connectsTo": [
+                "0/0/2",
+                "0/0/5"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -3586.926025390625,
+                    "y": 4272.30078125,
+                    "z": 2660.0
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 7,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "Inlet Guide Vanes",
+                "aliases": [
+                    "stator vanes",
+                    "guide vanes",
+                    "stators",
+                    "compressor stators"
+                ],
+                "function": "These stationary blades guide and redirect the incoming airflow at the optimal angle into the compressor or fan blades to maximize efficiency and prevent aerodynamic stalling.",
+                "material": "Titanium alloy",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/4/0",
+            "node": "Object_6.1",
+            "label": "Fan Rotor",
+            "aliases": [
+                "Front Fan",
+                "Fan Assembly",
+                "Intake Fan",
+                "Fan Blades"
+            ],
+            "function": "Draws large volumes of ambient air into the engine, accelerating bypass air to generate the majority of thrust while channeling the rest into the core compressor.",
+            "material": "Titanium alloy or carbon-fiber composite",
+            "connectsTo": [
+                "0/0/2"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -918.6724243164062,
+                    "y": 4263.53759765625,
+                    "z": 2683.346435546875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": "lowSpool"
+            },
+            "assemblyStep": 11,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "Fan Rotor",
+                "aliases": [
+                    "Front Fan",
+                    "Fan Assembly",
+                    "Intake Fan",
+                    "Fan Blades"
+                ],
+                "function": "Draws large volumes of ambient air into the engine, accelerating bypass air to generate the majority of thrust while channeling the rest into the core compressor.",
+                "material": "Titanium alloy or carbon-fiber composite",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/4/1",
+            "node": "Object_6.2",
+            "label": "Turbine Rotor",
+            "aliases": [
+                "Turbine Blades",
+                "Turbine Wheel",
+                "Gas Turbine",
+                "Power Turbine"
+            ],
+            "function": "Extracts energy from the hot, high-velocity exhaust gases to spin the shaft, which drives the compressor and the front fan.",
+            "material": "Nickel-based superalloy",
+            "connectsTo": [
+                "0/0/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 1.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -11217.8798828125,
+                    "y": 4272.2470703125,
+                    "z": 2678.405029296875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": "lowSpool"
+            },
+            "assemblyStep": 1,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "Turbine Rotor",
+                "aliases": [
+                    "Turbine Blades",
+                    "Turbine Wheel",
+                    "Gas Turbine",
+                    "Power Turbine"
+                ],
+                "function": "Extracts energy from the hot, high-velocity exhaust gases to spin the shaft, which drives the compressor and the front fan.",
+                "material": "Nickel-based superalloy",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/5",
+            "node": "Object_7",
+            "label": "bleed air pipes",
+            "aliases": [
+                "bleed air ducts",
+                "compressor bleed lines",
+                "external piping",
+                "pneumatic ducts"
+            ],
+            "function": "These pipes channel high-pressure, high-temperature air tapped from the compressor stage to be used for engine cooling, anti-icing, and aircraft cabin pressurization.",
+            "material": "titanium alloy",
+            "connectsTo": [
+                "0/0/6",
+                "0/0/9",
+                "0/0/8",
+                "0/0/2",
+                "0/0/3"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -5489.22802734375,
+                    "y": 3028.829833984375,
+                    "z": 4718.81689453125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 6,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 1.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "bleed air pipes",
+                "aliases": [
+                    "bleed air ducts",
+                    "compressor bleed lines",
+                    "external piping",
+                    "pneumatic ducts"
+                ],
+                "function": "These pipes channel high-pressure, high-temperature air tapped from the compressor stage to be used for engine cooling, anti-icing, and aircraft cabin pressurization.",
+                "material": "titanium alloy",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/6",
+            "node": "Object_8",
+            "label": "air duct elbow",
+            "aliases": [
+                "bleed air pipe connector",
+                "pneumatic duct elbow",
+                "pipe bend",
+                "transfer duct elbow"
+            ],
+            "function": "Connects sections of the external air ducting to route high-pressure, high-temperature bleed air from the compressor to other engine or aircraft systems.",
+            "material": "titanium alloy",
+            "connectsTo": [
+                "0/0/5",
+                "0/0/9",
+                "0/0/8"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -6913.91796875,
+                    "y": 3274.095947265625,
+                    "z": 4393.81640625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 4,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "air duct elbow",
+                "aliases": [
+                    "bleed air pipe connector",
+                    "pneumatic duct elbow",
+                    "pipe bend",
+                    "transfer duct elbow"
+                ],
+                "function": "Connects sections of the external air ducting to route high-pressure, high-temperature bleed air from the compressor to other engine or aircraft systems.",
+                "material": "titanium alloy",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/7",
+            "node": "Object_9",
+            "label": "pipe mounting brackets",
+            "aliases": [
+                "mounting brackets",
+                "pipe brackets",
+                "pipe flanges",
+                "support brackets"
+            ],
+            "function": "These brackets secure the external bleed air pipes and ducts to the main engine casing, preventing movement and damage from high-frequency engine vibrations.",
+            "material": "titanium alloy",
+            "connectsTo": [
+                "0/0/2",
+                "0/0/5",
+                "0/0/9"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -5933.5,
+                    "y": 3130.75,
+                    "z": 4070.625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 9,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "pipe mounting brackets",
+                "aliases": [
+                    "mounting brackets",
+                    "pipe brackets",
+                    "pipe flanges",
+                    "support brackets"
+                ],
+                "function": "These brackets secure the external bleed air pipes and ducts to the main engine casing, preventing movement and damage from high-frequency engine vibrations.",
+                "material": "titanium alloy",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/8",
+            "node": "Object_10",
+            "label": "engine accessories",
+            "aliases": [
+                "external accessories",
+                "accessory components",
+                "ancillary systems",
+                "engine auxiliaries"
+            ],
+            "function": "These external components, including heat exchangers, pumps, and control units, support the engine's operation by managing vital fluids, cooling, and electrical systems.",
+            "material": "aluminum and steel",
+            "connectsTo": [
+                "0/0/5",
+                "0/0/9",
+                "0/0/6",
+                "0/0/2"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7304.50048828125,
+                    "y": 2185.296142578125,
+                    "z": 3092.53955078125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 3,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "engine accessories",
+                "aliases": [
+                    "external accessories",
+                    "accessory components",
+                    "ancillary systems",
+                    "engine auxiliaries"
+                ],
+                "function": "These external components, including heat exchangers, pumps, and control units, support the engine's operation by managing vital fluids, cooling, and electrical systems.",
+                "material": "aluminum and steel",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/9",
+            "node": "Object_11",
+            "label": "compressor casing",
+            "aliases": [
+                "compressor housing",
+                "intermediate casing",
+                "compressor shroud",
+                "engine core casing"
+            ],
+            "function": "Encloses the compressor section of the engine to contain high-pressure airflow and provide structural support for the stator vanes.",
+            "material": "titanium alloy",
+            "connectsTo": [
+                "0/0/2",
+                "0/0/0",
+                "0/0/8",
+                "0/0/5",
+                "0/0/7"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7621.716796875,
+                    "y": 2987.934814453125,
+                    "z": 2639.93017578125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 5,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "compressor casing",
+                "aliases": [
+                    "compressor housing",
+                    "intermediate casing",
+                    "compressor shroud",
+                    "engine core casing"
+                ],
+                "function": "Encloses the compressor section of the engine to contain high-pressure airflow and provide structural support for the stator vanes.",
+                "material": "titanium alloy",
+                "motion": "none",
+                "confidence": 0.949999988079071
+            }
+        }
+    ],
+    "assemblyOrder": [
+        "0/0/4/1",
+        "0/0/0",
+        "0/0/8",
+        "0/0/6",
+        "0/0/9",
+        "0/0/5",
+        "0/0/3",
+        "0/0/2",
+        "0/0/7",
+        "0/0/1",
+        "0/0/4/0"
+    ]
+}

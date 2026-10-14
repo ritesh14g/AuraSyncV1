@@ -1,0 +1,38 @@
+name = "aurasync-ai"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+
+# Model names are plain settings, so swapping a model is a redeploy, not a code change.
+# Each is a comma-separated list, tried in order: when a provider retires a model (it answers 404)
+# or its free daily quota runs out, the next one takes over. Free quotas are per model, so the
+# second name is also a second day's worth of quota.
+#
+# To see which models your keys can use:
+#   Gemini: curl "https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_KEY"
+#   Groq:   curl https://api.groq.com/openai/v1/models -H "Authorization: Bearer YOUR_KEY"
+[vars]
+# Who answers first. Measured on 2026-10-09 (typical / slowest time for a chat answer):
+#   Groq gpt-oss-120b 1.4 s / 1.8 s,  Gemini 3.1 Flash-Lite 7.5 s / 11 s,  Gemini 3.5 Flash-Lite 23 s / 26 s.
+# So chat and search go to Groq first. Quizzes go to Gemini first: the teacher waits once, and
+# quality matters more than speed there. Either provider still covers for the other.
+PROVIDER_ORDER_CHAT = "groq,gemini"
+PROVIDER_ORDER_QUIZ = "gemini,groq"
+
+GROQ_MODEL = "openai/gpt-oss-120b,openai/gpt-oss-20b"               # chat/search first choice; quiz backup
+GEMINI_CHAT_MODEL = "gemini-3.1-flash-lite,gemini-3.5-flash-lite"   # chat/search backup (3.1 is the faster one)
+GEMINI_QUIZ_MODEL = "gemini-3.8-flash,gemini-3.5-flash"             # quiz first choice
+
+# Voice search (speech to text): Groq's Whisper first, then Gemini (which can also listen).
+PROVIDER_ORDER_STT = "groq,gemini"
+GROQ_STT_MODEL = "whisper-large-v3-turbo,whisper-large-v3"
+STT_LANGUAGE = "en"   # what students speak; "" lets Whisper guess the language
+
+# How much Gemini "thinks" before answering (minimal / low / medium / high). Set to "" to stop
+# sending the setting at all.
+GEMINI_THINKING_CHAT = "minimal"
+GEMINI_THINKING_QUIZ = "low"
+
+# Secrets are NOT written here. Set each one once with:
+#   npx wrangler secret put GEMINI_API_KEY
+#   npx wrangler secret put GROQ_API_KEY
+#   npx wrangler secret put APP_KEY
