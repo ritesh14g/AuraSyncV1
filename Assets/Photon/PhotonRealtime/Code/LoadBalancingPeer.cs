@@ -19,6 +19,7 @@ namespace Photon.Realtime
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using ExitGames.Client.Photon;
 
     #if SUPPORTED_UNITY
@@ -42,6 +43,7 @@ namespace Photon.Realtime
     {
         /// <summary>Obsolete accessor to the RegionHandler.PingImplementation.</summary>
         [Obsolete("Use RegionHandler.PingImplementation directly.")]
+        [SuppressMessage("Domain reload", "UDR0001:Domain Reload Analyzer", Justification = "This just provides access to RegionHandler.PingImplementation which is taken care of.")]
         protected internal static Type PingImplementation
         {
             get { return RegionHandler.PingImplementation; }
@@ -82,7 +84,7 @@ namespace Photon.Realtime
         private void ConfigUnitySockets()
         {
             Type websocketType = null;
-            #if (UNITY_XBOXONE || UNITY_GAMECORE) && !UNITY_EDITOR
+            #if (UNITY_XBOXONE || UNITY_GAMECORE || UNITY_SWITCH2) && !UNITY_EDITOR
             websocketType = Type.GetType("ExitGames.Client.Photon.SocketNativeSource, Assembly-CSharp", false);
             if (websocketType == null)
             {
@@ -94,7 +96,7 @@ namespace Photon.Realtime
             }
             if (websocketType != null)
             {
-                this.SocketImplementationConfig[ConnectionProtocol.Udp] = websocketType;    // on Xbox, the native socket plugin supports UDP as well
+                this.SocketImplementationConfig[ConnectionProtocol.Udp] = websocketType;    // the native socket plugin supports UDP as well
             }
             #else
             // to support WebGL export in Unity, we find and assign the SocketWebTcp class (if it's in the project).

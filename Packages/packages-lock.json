@@ -1,7 +1,7 @@
 {
   "dependencies": {
     "com.google.ar.core.arfoundation.extensions": {
-      "version": "https://github.com/google-ar/arcore-unity-extensions.git",
+      "version": "https://github.com/google-ar/arcore-unity-extensions.git#v1.54.0-arf5",
       "depth": 0,
       "source": "git",
       "dependencies": {
@@ -9,7 +9,7 @@
         "com.unity.xr.arcore": "4.1.5",
         "com.unity.xr.arkit": "4.1.5"
       },
-      "hash": "26abe78063ff9fa4aac401007d4d7c4e7e3fd7a9"
+      "hash": "f3de023d6bc99a221cfc36bbb583426658ca3195"
     },
     "com.unity.2d.sprite": {
       "version": "1.0.0",
@@ -47,6 +47,17 @@
       },
       "url": "https://packages.unity.com"
     },
+    "com.unity.cloud.draco": {
+      "version": "5.4.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.burst": "1.8.24",
+        "com.unity.collections": "1.2.4",
+        "com.unity.mathematics": "1.2.6"
+      },
+      "url": "https://packages.unity.com"
+    },
     "com.unity.cloud.gltfast": {
       "version": "6.14.1",
       "depth": 0,
@@ -56,6 +67,15 @@
         "com.unity.collections": "1.2.4",
         "com.unity.mathematics": "1.2.6",
         "com.unity.modules.jsonserialize": "1.0.0",
+        "com.unity.modules.unitywebrequest": "1.0.0"
+      },
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.cloud.ktx": {
+      "version": "3.6.0",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
         "com.unity.modules.unitywebrequest": "1.0.0"
       },
       "url": "https://packages.unity.com"
@@ -166,6 +186,16 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {},
+      "url": "https://packages.unity.com"
+    },
+    "com.unity.meshopt.decompress": {
+      "version": "0.1.0-preview.7",
+      "depth": 0,
+      "source": "registry",
+      "dependencies": {
+        "com.unity.burst": "1.4.11",
+        "com.unity.mathematics": "1.2.1"
+      },
       "url": "https://packages.unity.com"
     },
     "com.unity.mobile.android-logcat": {
@@ -298,13 +328,13 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.xr.arkit": {
-      "version": "5.2.0",
-      "depth": 1,
+      "version": "5.2.2",
+      "depth": 0,
       "source": "registry",
       "dependencies": {
         "com.unity.xr.core-utils": "2.1.0",
         "com.unity.xr.management": "4.0.1",
-        "com.unity.xr.arfoundation": "5.2.0",
+        "com.unity.xr.arfoundation": "5.2.2",
         "com.unity.editorcoroutines": "1.0.0"
       },
       "url": "https://packages.unity.com"

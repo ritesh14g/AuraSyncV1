@@ -168,7 +168,7 @@ namespace Photon.Realtime
             #if SUPPORTED_UNITY
             this.CancelInvoke(nameof(this.LogStats));
             #else
-            this.logTimer.Dispose();
+            this.logTimer?.Dispose();
             this.logTimer = null;
             #endif
         }
@@ -188,7 +188,7 @@ namespace Photon.Realtime
             #if SUPPORTED_UNITY
             this.CancelInvoke(nameof(this.TrackValues));
             #else
-            this.trackingTimer.Dispose();
+            this.trackingTimer?.Dispose();
             this.trackingTimer = null;
             #endif
         }
