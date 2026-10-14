@@ -171,50 +171,17 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = noteObj;
             PersistenceManager.Instance.AddNote(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Note placed at {pos}");
 
-            // --- PUN2 Network Sync + Cloud Anchors ---
-            if (!config.isPrivate)
-            {
-                if (Networking.CloudAnchorManager.Instance != null)
-                {
-                    ShowPlacementFeedback("Hosting Note to Cloud...");
-                    Networking.CloudAnchorManager.Instance.HostAnchor(anchor, (cloudId) => 
-                    {
-                        config.cloudAnchorId = cloudId;
-                        // Update the local save with the new cloud ID
-                        // PersistenceManager.Instance.UpdateNote(config); 
-                        
-                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                        if (pv != null)
-                        {
-                            string json = JsonUtility.ToJson(config);
-                            pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
-                        }
-                        ShowPlacementFeedback("Note Cloud Anchor Hosted!");
-                    }, (error) => 
-                    {
-                        ShowPlacementFeedback("Failed to host Cloud Anchor. Sending local position only.");
-                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                        if (pv != null)
-                        {
-                            string json = JsonUtility.ToJson(config);
-                            pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
-                        }
-                    });
-                }
-                else
-                {
-                    // Fallback if CloudAnchorManager is not in scene
-                    var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                    if (pv != null)
-                    {
-                        string json = JsonUtility.ToJson(config);
-                        pv.RPC("RpcPlaceNote", Photon.Pun.RpcTarget.Others, json);
-                    }
-                }
-            }
+            ShareItem(anchor, config.isPrivate, "RpcPlaceNote", "Note",
+                      cloudId =>
+                      {
+                          config.cloudAnchorId = cloudId;
+                          PersistenceManager.Instance?.UpdateNote(config); // keep the cloud ID across restarts
+                      },
+                      () => JsonUtility.ToJson(config));
         }
 
         // ──────────────────────────────────────────
@@ -250,48 +217,112 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = obj;
             PersistenceManager.Instance.AddObject(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
             AppStateManager.Instance.ReturnToIdle();
             Debug.Log($"[AuraSync] Object placed: {config.prefabName} at {pos}");
 
-            // --- PUN2 Network Sync + Cloud Anchors ---
-            if (!config.isPrivate)
+            ShareItem(anchor, config.isPrivate, "RpcPlaceObject", "Object",
+                      cloudId =>
+                      {
+                          config.cloudAnchorId = cloudId;
+                          PersistenceManager.Instance?.UpdateObject(config); // keep the cloud ID across restarts
+                      },
+                      () => JsonUtility.ToJson(config));
+        }
+
+        // ──────────────────────────────────────────
+        //  Network Sharing
+        // ──────────────────────────────────────────
+
+        /// <summary>
+        /// Shares a freshly placed item with the room: hosts a Cloud Anchor (when available) so
+        /// other devices can align it, then sends the item over Photon.
+        /// Does nothing for private items or when not in a room, so solo placement never touches
+        /// the cloud or the network.
+        /// </summary>
+        /// <param name="onCloudId">Called with the hosted Cloud Anchor ID before the item JSON is built.</param>
+        /// <param name="toJson">Builds the payload lazily so it includes the cloud ID once known.</param>
+        private void ShareItem(ARAnchor anchor, bool isPrivate, string rpcName, string label,
+                               System.Action<string> onCloudId, System.Func<string> toJson)
+        {
+            if (isPrivate || !Photon.Pun.PhotonNetwork.InRoom) return;
+
+            var cloud = Networking.CloudAnchorManager.Instance;
+            if (cloud == null)
             {
-                if (Networking.CloudAnchorManager.Instance != null)
-                {
-                    ShowPlacementFeedback("Hosting Object to Cloud...");
-                    Networking.CloudAnchorManager.Instance.HostAnchor(anchor, (cloudId) => 
-                    {
-                        config.cloudAnchorId = cloudId;
-                        // PersistenceManager.Instance.UpdateObject(config);
-                        
-                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                        if (pv != null)
-                        {
-                            string json = JsonUtility.ToJson(config);
-                            pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
-                        }
-                        ShowPlacementFeedback("Object Cloud Anchor Hosted!");
-                    }, (error) => 
-                    {
-                        ShowPlacementFeedback("Failed to host Cloud Anchor. Sending local position only.");
-                        var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                        if (pv != null)
-                        {
-                            string json = JsonUtility.ToJson(config);
-                            pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
-                        }
-                    });
-                }
-                else
-                {
-                    var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
-                    if (pv != null)
-                    {
-                        string json = JsonUtility.ToJson(config);
-                        pv.RPC("RpcPlaceObject", Photon.Pun.RpcTarget.Others, json);
-                    }
-                }
+                SendPlacementRpc(rpcName, toJson);
+                return;
             }
+
+            // Snapshot the pose now: the item can move (for example notes turn to face the camera) while hosting.
+            Pose hostedPose = new Pose(anchor.transform.position, anchor.transform.rotation);
+
+            ShowPlacementFeedback($"Hosting {label} to Cloud...");
+            cloud.HostAnchor(anchor, cloudId =>
+            {
+                onCloudId?.Invoke(cloudId);
+                ClaimSharedOrigin(cloudId, hostedPose);
+                SendPlacementRpc(rpcName, toJson);
+                ShowPlacementFeedback($"{label} Cloud Anchor Hosted!");
+            }, error =>
+            {
+                ShowPlacementFeedback("Failed to host Cloud Anchor. Sending local position only.");
+                SendPlacementRpc(rpcName, toJson);
+            });
+        }
+
+        /// <summary>
+        /// The presenter's first hosted anchor becomes the room's shared origin, so pointers and
+        /// gaze can be exchanged in a frame every device agrees on.
+        /// </summary>
+        private void ClaimSharedOrigin(string cloudId, Pose hostedPose)
+        {
+            if (Networking.ZoneManager.Instance == null || !Networking.ZoneManager.Instance.IsAdmin) return;
+            if (Networking.SharedSpaceOrigin.HasOrigin) return;
+
+            Transform frame = new GameObject("SharedOriginFrame").transform;
+            frame.SetPositionAndRotation(hostedPose.position, hostedPose.rotation);
+            Networking.SharedSpaceOrigin.RegisterAnchor(cloudId, frame);
+            Networking.SharedSpaceOrigin.TryClaimAsAdmin(cloudId);
+        }
+
+        /// <summary>
+        /// Brings a newly joined player up to date: re-sends every shared item that has a Cloud
+        /// Anchor (items without one cannot be placed correctly on another device).
+        /// Called on the master client only. The receiver ignores IDs it already has.
+        /// </summary>
+        public void SendSharedItemsTo(Photon.Realtime.Player target)
+        {
+            var env = PersistenceManager.Instance != null ? PersistenceManager.Instance.ActiveEnvironment : null;
+            var pv  = Networking.NetworkManager.Instance != null
+                ? Networking.NetworkManager.Instance.GetComponent<Photon.Pun.PhotonView>() : null;
+            if (env == null || pv == null || target == null) return;
+
+            int sent = 0;
+            foreach (var n in env.notes)
+            {
+                if (n.isPrivate || string.IsNullOrEmpty(n.cloudAnchorId)) continue;
+                pv.RPC("RpcPlaceNote", target, JsonUtility.ToJson(n));
+                sent++;
+            }
+            foreach (var o in env.objects)
+            {
+                if (o.isPrivate || string.IsNullOrEmpty(o.cloudAnchorId)) continue;
+                pv.RPC("RpcPlaceObject", target, JsonUtility.ToJson(o));
+                sent++;
+            }
+            Debug.Log($"[AuraSync] Sent {sent} shared item(s) to {Networking.NetworkManager.DisplayName(target)}");
+        }
+
+        private void SendPlacementRpc(string rpcName, System.Func<string> toJson)
+        {
+            // Hosting is asynchronous; the user may have left the room in the meantime.
+            if (!Photon.Pun.PhotonNetwork.InRoom) return;
+
+            var pv = Networking.NetworkManager.Instance?.GetComponent<Photon.Pun.PhotonView>();
+            if (pv == null) return;
+
+            pv.RPC(rpcName, Photon.Pun.RpcTarget.Others, toJson());
         }
 
         // ──────────────────────────────────────────
@@ -322,6 +353,7 @@ namespace AuraSync.Core
                 {
                     string id = noteCtrl.Data.id;
                     PersistenceManager.Instance.RemoveNote(id);
+                    Networking.ZoneManager.Instance?.UnregisterItem(id);
                     _activeItems.Remove(id);
                     Destroy(noteCtrl.gameObject);
                     Handheld.Vibrate();
@@ -334,6 +366,7 @@ namespace AuraSync.Core
                 {
                     string id = objCtrl.Data.id;
                     PersistenceManager.Instance.RemoveObject(id);
+                    Networking.ZoneManager.Instance?.UnregisterItem(id);
                     _activeItems.Remove(id);
                     Destroy(objCtrl.gameObject);
                     Handheld.Vibrate();
@@ -357,10 +390,12 @@ namespace AuraSync.Core
                 if (idx < 0 || idx >= notePrefabs.Length) continue;
 
                 GameObject noteObj = Instantiate(notePrefabs[idx], noteData.GetPosition(), noteData.GetRotation());
+                noteObj.AddComponent<ARAnchor>(); // re-anchor so restored items stay put as tracking refines
                 noteObj.transform.localScale = noteData.GetScale();
                 var ctrl = noteObj.GetComponent<Notes.NoteController>();
                 if (ctrl != null) ctrl.Initialize(noteData);
                 _activeItems[noteData.id] = noteObj;
+                Networking.ZoneManager.Instance?.RegisterPlacedItem(noteData);
             }
 
             foreach (var objData in env.objects)
@@ -369,10 +404,12 @@ namespace AuraSync.Core
                 if (prefab == null) continue;
 
                 GameObject obj = Instantiate(prefab, objData.GetPosition(), objData.GetRotation());
+                obj.AddComponent<ARAnchor>(); // re-anchor so restored items stay put as tracking refines
                 obj.transform.localScale = objData.GetScale();
                 var ctrl = obj.GetComponent<Objects.ObjectController>();
                 if (ctrl != null) ctrl.Initialize(objData);
                 _activeItems[objData.id] = obj;
+                Networking.ZoneManager.Instance?.RegisterPlacedItem(objData);
             }
 
             Debug.Log($"[AuraSync] Restored {env.notes.Count} notes + {env.objects.Count} objects");
@@ -454,13 +491,88 @@ namespace AuraSync.Core
         // ──────────────────────────────────────────
         //  Network Placement (called by RPC)
         // ──────────────────────────────────────────
+        // ──────────────────────────────────────────
+        //  Incoming edits and deletions
+        // ──────────────────────────────────────────
+
+        /// <summary>Applies an edit another player made to a note.</summary>
+        public void NetworkUpdateNote(NoteItemData config)
+        {
+            if (config == null) return;
+
+            // Saving must not bounce the change straight back to whoever sent it.
+            Networking.ItemSync.ApplyingRemoteChange = true;
+            try
+            {
+                PersistenceManager.Instance?.UpdateNote(config);
+
+                if (_activeItems.TryGetValue(config.id, out GameObject go) && go != null)
+                {
+                    var ctrl = go.GetComponent<Notes.NoteController>();
+                    if (ctrl != null) ctrl.Initialize(config);
+                    go.transform.localScale = config.GetScale();
+                }
+            }
+            finally { Networking.ItemSync.ApplyingRemoteChange = false; }
+
+            Debug.Log($"[AuraSync] Note updated from the room: {config.id}");
+        }
+
+        /// <summary>Applies an edit another player made to a 3D object.</summary>
+        public void NetworkUpdateObject(ObjectItemData config)
+        {
+            if (config == null) return;
+
+            Networking.ItemSync.ApplyingRemoteChange = true;
+            try
+            {
+                PersistenceManager.Instance?.UpdateObject(config);
+
+                if (_activeItems.TryGetValue(config.id, out GameObject go) && go != null)
+                {
+                    var ctrl = go.GetComponent<Objects.ObjectController>();
+                    if (ctrl != null) ctrl.Initialize(config);
+                    go.transform.localScale = config.GetScale();
+                }
+            }
+            finally { Networking.ItemSync.ApplyingRemoteChange = false; }
+
+            Debug.Log($"[AuraSync] Object updated from the room: {config.id}");
+        }
+
+        /// <summary>Removes an item another player deleted.</summary>
+        public void NetworkDeleteItem(string itemId)
+        {
+            if (string.IsNullOrEmpty(itemId)) return;
+
+            Networking.ItemSync.ApplyingRemoteChange = true;
+            try
+            {
+                PersistenceManager.Instance?.RemoveNote(itemId);
+                PersistenceManager.Instance?.RemoveObject(itemId);
+                Networking.ZoneManager.Instance?.UnregisterItem(itemId);
+
+                if (_activeItems.TryGetValue(itemId, out GameObject go))
+                {
+                    if (go != null) Destroy(go);
+                    _activeItems.Remove(itemId);
+                }
+            }
+            finally { Networking.ItemSync.ApplyingRemoteChange = false; }
+
+            Debug.Log($"[AuraSync] Item deleted from the room: {itemId}");
+        }
+
         public void NetworkPlaceNote(NoteItemData config)
         {
+            if (_activeItems.ContainsKey(config.id)) return; // already placed (for example a late-join re-send)
+
             if (!string.IsNullOrEmpty(config.cloudAnchorId) && Networking.CloudAnchorManager.Instance != null)
             {
                 ShowPlacementFeedback("Resolving note from Cloud Anchor...");
                 Networking.CloudAnchorManager.Instance.ResolveAnchor(config.cloudAnchorId, (resolvedTransform) => 
                 {
+                    Networking.SharedSpaceOrigin.RegisterAnchor(config.cloudAnchorId, resolvedTransform);
                     int prefabIndex = GetNotePrefabIndex(config.noteStyle, config.noteType);
                     if (prefabIndex < 0 || prefabIndex >= notePrefabs.Length) return;
 
@@ -474,6 +586,7 @@ namespace AuraSync.Core
 
                     _activeItems[config.id] = noteObj;
                     PersistenceManager.Instance.AddNote(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
                     Debug.Log($"[AuraSync] Network Note perfectly aligned via Cloud Anchor!");
                 }, (error) => 
                 {
@@ -503,16 +616,20 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = noteObj;
             PersistenceManager.Instance.AddNote(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
             Debug.Log($"[AuraSync] Network Note placed at {pos} (Fallback/No Cloud ID)");
         }
 
         public void NetworkPlaceObject(ObjectItemData config)
         {
+            if (_activeItems.ContainsKey(config.id)) return; // already placed (for example a late-join re-send)
+
             if (!string.IsNullOrEmpty(config.cloudAnchorId) && Networking.CloudAnchorManager.Instance != null)
             {
                 ShowPlacementFeedback("Resolving object from Cloud Anchor...");
                 Networking.CloudAnchorManager.Instance.ResolveAnchor(config.cloudAnchorId, (resolvedTransform) => 
                 {
+                    Networking.SharedSpaceOrigin.RegisterAnchor(config.cloudAnchorId, resolvedTransform);
                     GameObject prefab = GetObjectPrefab(config.prefabName);
                     if (prefab == null) return;
 
@@ -526,6 +643,7 @@ namespace AuraSync.Core
 
                     _activeItems[config.id] = obj;
                     PersistenceManager.Instance.AddObject(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
                     Debug.Log($"[AuraSync] Network Object perfectly aligned via Cloud Anchor!");
                 }, (error) => 
                 {
@@ -555,6 +673,7 @@ namespace AuraSync.Core
 
             _activeItems[config.id] = obj;
             PersistenceManager.Instance.AddObject(config);
+            Networking.ZoneManager.Instance?.RegisterPlacedItem(config);
             Debug.Log($"[AuraSync] Network Object placed: {config.prefabName} at {pos} (Fallback/No Cloud ID)");
         }
     }

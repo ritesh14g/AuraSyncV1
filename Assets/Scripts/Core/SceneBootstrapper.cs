@@ -31,6 +31,12 @@ namespace AuraSync
             if (_hasInitialized) return;
             _hasInitialized = true;
 
+            // Networking, voice and the lobby do not depend on AR tracking, and UI scripts
+            // subscribe to these managers in their own Start(). Create them first, before the
+            // (up to ~45 s) AR wait, so nothing subscribes to a manager that does not exist yet.
+            EnsureNetworkingManagers();
+            Debug.Log("[AuraSync] Collaboration managers initialized.");
+
             Debug.Log("[AuraSync] ═══════════════════════════════════════");
             Debug.Log("[AuraSync]  AuraSync AR Ecosystem v1.0 Starting");
             Debug.Log("[AuraSync] ═══════════════════════════════════════");
@@ -78,6 +84,71 @@ namespace AuraSync
             AppStateManager.Instance?.SetMode(AppMode.Idle);
 
             Debug.Log($"[AuraSync] Initialized: {env.environmentName} | Notes: {env.notes.Count} | Objects: {env.objects.Count}");
+        }
+
+        private void EnsureNetworkingManagers()
+        {
+            // Admin/zone state. NetworkManager and the HUDs read ZoneManager.IsAdmin, so it must
+            // exist even if the scene did not ship one.
+            if (Networking.ZoneManager.Instance == null)
+            {
+                GameObject zoneGo = new GameObject("AuraSync_ZoneManager");
+                zoneGo.AddComponent<Networking.ZoneManager>();
+            }
+
+            Networking.NetworkManager.EnsureExists();
+
+            // Who drives explode / isolate / highlight for the room (V3 Phase 1).
+            Networking.ControlOwnership.EnsureExists();
+
+            if (Networking.UserPresence.Instance == null)
+            {
+                GameObject presGo = new GameObject("AuraSync_UserPresence");
+                var pv = presGo.AddComponent<Photon.Pun.PhotonView>();
+                pv.ViewID = Networking.UserPresence.PresenceViewId;
+                Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
+                presGo.AddComponent<Networking.UserPresence>();
+            }
+
+            if (Networking.VoiceChatManager.Instance == null)
+            {
+                GameObject voiceGo = new GameObject("AuraSync_VoiceChatManager");
+                voiceGo.AddComponent<Networking.VoiceChatManager>();
+            }
+
+            if (Networking.AdminBroadcastManager.Instance == null)
+            {
+                GameObject adminGo = new GameObject("AuraSync_AdminBroadcastManager");
+                adminGo.AddComponent<Networking.AdminBroadcastManager>();
+            }
+
+            if (Networking.ModelSyncManager.Instance == null)
+            {
+                GameObject modelSyncGo = new GameObject("AuraSync_ModelSyncManager");
+                var pv = modelSyncGo.AddComponent<Photon.Pun.PhotonView>();
+                pv.ViewID = 995;
+                Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
+                modelSyncGo.AddComponent<Networking.ModelSyncManager>();
+            }
+
+            if (Networking.FollowAdminController.Instance == null)
+            {
+                GameObject followGo = new GameObject("AuraSync_FollowAdminController");
+                followGo.AddComponent<Networking.FollowAdminController>();
+            }
+
+            if (UI.RoomLobbyUI.Instance == null)
+            {
+                GameObject lobbyGo = new GameObject("AuraSync_RoomLobby");
+                lobbyGo.AddComponent<UI.RoomLobbyUI>();
+            }
+
+            // Joins a room when the app is opened from an invite link
+            if (Networking.DeepLinkHandler.Instance == null)
+            {
+                GameObject linkGo = new GameObject("AuraSync_DeepLinkHandler");
+                linkGo.AddComponent<Networking.DeepLinkHandler>();
+            }
         }
 
         /// <summary>
@@ -141,3 +212,7 @@ namespace AuraSync
         }
     }
 }
+
+
+
+

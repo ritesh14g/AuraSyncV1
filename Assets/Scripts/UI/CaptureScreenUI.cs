@@ -73,21 +73,30 @@ public class CaptureScreenUI : MonoBehaviour
         currentState = State.Ready;
 
         // --- PIPELINE INTEGRATION ---
-        // Save the newly captured model to Firebase instantly!
-        if (FirestoreManager.Instance != null)
+        // The scan is stored on this device. The shared catalogue is a read-only manifest on
+        // Hugging Face, so a capture cannot write to it - see ModelCatalog for why.
+        if (ModelCatalog.Instance != null)
         {
-            Debug.Log("[CaptureScreenUI] Model captured successfully. Sending to Firestore...");
-            ModelData newModel = new ModelData 
-            { 
-                name = "New 3D Scan " + Random.Range(10, 99), 
-                glbUrl = modelUrl, 
-                thumbnailUrl = "Freshly Captured Model" 
-            };
-            FirestoreManager.Instance.SaveModel(newModel);
+            Debug.Log("[CaptureScreenUI] Model captured successfully. Saving to the catalogue...");
+
+            string capturedUrl = modelUrl;
+            ScanNaming.BuildTodaysName(scanName =>
+            {
+                if (ModelCatalog.Instance == null) return;
+
+                ModelData newModel = new ModelData
+                {
+                    name = scanName,
+                    glbUrl = capturedUrl,
+                    description = "Freshly Captured Model"
+                };
+                ModelCatalog.Instance.SaveModel(newModel);
+                Debug.Log($"[CaptureScreenUI] Saved scan as '{scanName}'.");
+            });
         }
         else
         {
-            Debug.LogWarning("[CaptureScreenUI] Cannot save to Firestore: FirestoreManager.Instance is missing!");
+            Debug.LogWarning("[CaptureScreenUI] Cannot save the scan: ModelCatalog.Instance is missing!");
         }
     }
 

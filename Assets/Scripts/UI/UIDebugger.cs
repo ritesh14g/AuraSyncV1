@@ -10,11 +10,15 @@ namespace AuraSync.UI
     /// </summary>
     public class UIDebugger : MonoBehaviour
     {
+        [Tooltip("Per-frame input logging. Off by default: it printed a line every second on the " +
+                 "phone, which buried the voice and material diagnostics that actually matter.")]
+        [SerializeField] private bool verboseInputLogging = false;
+
+        private float _nextInputLogTime = 0f;
+
         void Start()
         {
-            Debug.Log("[AuraSync Debug] UI Debugger Starting...");
             FixEventSystem();
-            CheckForBlockers();
         }
 
         void FixEventSystem()
@@ -37,33 +41,29 @@ namespace AuraSync.UI
             }
         }
 
-        void CheckForBlockers()
-        {
-            Graphic[] allGraphics = Object.FindObjectsOfType<Graphic>();
-            foreach (var g in allGraphics)
-            {
-                if (g.raycastTarget && g.canvasRenderer.GetAlpha() > 0.01f && g.enabled)
-                {
-                    // If it's a giant full-screen image that isn't a button, it's a blocker!
-                    RectTransform rt = g.rectTransform;
-                    if (rt.rect.width > Screen.width * 0.9f && rt.rect.height > Screen.height * 0.9f)
-                    {
-                        if (g.GetComponent<Button>() == null && g.name.ToLower().Contains("backdrop"))
-                        {
-                            Debug.LogWarning($"[AuraSync Debug] Possible Blocker Found: {g.name} on {g.gameObject.name}. Forcing raycastTarget OFF.");
-                            g.raycastTarget = false;
-                        }
-                    }
-                }
-            }
-        }
+        // CheckForBlockers() was removed. It force-disabled raycastTarget on any full-screen graphic
+        // whose name contained "backdrop" and had no Button. The room panel's backdrop survived only
+        // because it happens to carry one for tap-to-dismiss; any future backdrop without a Button
+        // would have silently stopped blocking touches, which would be a miserable bug to trace.
 
         void Update()
         {
-            if (Input.GetMouseButtonDown(0))
+            if (!verboseInputLogging) return;
+
+            if (Time.unscaledTime >= _nextInputLogTime)
+            {
+                _nextInputLogTime = Time.unscaledTime + 1f;
+
+                Debug.Log("[INPUT TEST] UPDATE RUNNING | Mouse=" +
+                    (UnityEngine.InputSystem.Mouse.current != null) +
+                    " | EventSystem=" + (EventSystem.current != null) +
+                    " | Active=" + gameObject.activeInHierarchy +
+                    " | Enabled=" + enabled);
+            }
+            if (UnityEngine.InputSystem.Mouse.current != null && UnityEngine.InputSystem.Mouse.current.leftButton.wasPressedThisFrame)
             {
                 PointerEventData eventData = new PointerEventData(EventSystem.current);
-                eventData.position = Input.mousePosition;
+                eventData.position = UnityEngine.InputSystem.Mouse.current.position.ReadValue();
                 var results = new System.Collections.Generic.List<RaycastResult>();
                 EventSystem.current.RaycastAll(eventData, results);
 
@@ -79,3 +79,11 @@ namespace AuraSync.UI
         }
     }
 }
+
+
+
+
+
+
+
+

@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -24,8 +25,9 @@ namespace AuraSync.UI
         [SerializeField] private string spaceSceneName = "SpaceScene";
 
         [System.Serializable]
-        private class ModelEntry 
+        private class ModelEntry
         {
+            public string id;
             public string displayName;
             public string fileName; // e.g. "House.glb"
             public string description;
@@ -33,26 +35,61 @@ namespace AuraSync.UI
 
         private List<ModelEntry> _models = new List<ModelEntry>();
         private bool _isOpen = false;
-        private bool _isInitialized = false;
+
+        /// <summary>
+        /// Set by the 3D viewer's Back button so this panel reopens on arrival, instead of dropping
+        /// the user into the bare AR camera and making them navigate back here by hand.
+        /// </summary>
+        public const string OpenOnLoadKey = "AuraSync.OpenModelListOnLoad";
 
         void Awake()
         {
+            if (backButton != null) backButton.onClick.AddListener(ClosePanel);
+
+            // REPORTS on the model list too, so reports open with no model and no room (Phase 11).
+            ReportsUI.AddButtonTo(panel);
+
+            if (ConsumeOpenOnLoadRequest())
+            {
+                OpenPanel();
+                return; // opening already set the panel up; hiding it here would undo that
+            }
+
             // Force hide on startup so it doesn't block the main AR view
             SetPanelActive(false);
-            if (backButton != null) backButton.onClick.AddListener(ClosePanel);
+        }
+
+        private static bool ConsumeOpenOnLoadRequest()
+        {
+            if (PlayerPrefs.GetInt(OpenOnLoadKey, 0) != 1) return false;
+
+            PlayerPrefs.DeleteKey(OpenOnLoadKey);
+            PlayerPrefs.Save();
+            return true;
         }
 
         public void OpenPanel()
         {
             if (_isOpen) return;
             _isOpen = true;
-            
+
             gameObject.SetActive(true);
             SetPanelActive(true);
-            
-            // Refresh models from Firestore when panel opens
-            RefreshModelsFromDatabase();
+
+            StartCoroutine(RefreshWhenDatabaseReady());
             Debug.Log("[AuraSync] ModelRepository: Panel Opened");
+        }
+
+        /// <summary>
+        /// On a fresh scene load this panel can wake before ModelCatalog does, which used to
+        /// leave the grid empty with only a warning in the log.
+        /// </summary>
+        private IEnumerator RefreshWhenDatabaseReady()
+        {
+            float deadline = Time.unscaledTime + 5f;
+            while (ModelCatalog.Instance == null && Time.unscaledTime < deadline) yield return null;
+
+            RefreshModelsFromDatabase();
         }
 
         public void ClosePanel()
@@ -78,65 +115,56 @@ namespace AuraSync.UI
 
         public void RefreshModelsFromDatabase()
         {
-            if (FirestoreManager.Instance == null)
+            if (ModelCatalog.Instance == null)
             {
-                Debug.LogWarning("[ModelRepositoryUI] FirestoreManager is not in the scene! Cannot load models.");
+                Debug.LogWarning("[ModelRepositoryUI] ModelCatalog is not in the scene! Cannot load models.");
                 return;
             }
 
-            // Fetch from database
-            FirestoreManager.Instance.GetAllModels((dbModels) => 
+            // The default models are no longer seeded from here - they are whatever models.json on
+            // Hugging Face lists, so an empty result means the manifest is empty or unreachable and
+            // the right response is an empty grid, not writing rows back.
+            ModelCatalog.Instance.GetAllModels((catalogue) =>
             {
-                // If database is empty, seed it with the default models so they are stored there
-                if (dbModels.Count == 0 && !_isInitialized)
-                {
-                    _isInitialized = true;
-                    Debug.Log("[ModelRepositoryUI] Database is empty. Seeding default models...");
-                    SeedDefaultModels();
-                    return; // SeedDefaultModels will trigger a refresh when done
-                }
-
                 _models.Clear();
-                foreach (var dbm in dbModels)
+                foreach (var model in catalogue)
                 {
-                    _models.Add(new ModelEntry 
-                    { 
-                        displayName = dbm.name, 
-                        fileName = dbm.glbUrl, 
-                        description = dbm.thumbnailUrl 
+                    _models.Add(new ModelEntry
+                    {
+                        id = model.id,
+                        displayName = model.name,
+                        fileName = model.glbUrl,
+                        // Entries written before the move still carry their subtitle in thumbnailUrl.
+                        description = !string.IsNullOrEmpty(model.description)
+                            ? model.description
+                            : model.thumbnailUrl
                     });
                 }
                 BuildGrid();
             });
         }
 
-        private void SeedDefaultModels()
-        {
-            ModelData house = new ModelData { name = "House", glbUrl = "House.glb", thumbnailUrl = "Residential Structure" };
-            ModelData jet = new ModelData { name = "Jet Engine", glbUrl = "JetEngine.glb", thumbnailUrl = "Aircraft Propulsion" };
-            
-            FirestoreManager.Instance.SaveModel(house);
-            FirestoreManager.Instance.SaveModel(jet);
-
-            // Wait a moment for save to complete, then refresh
-            Invoke(nameof(RefreshModelsFromDatabase), 1.5f);
-        }
-
         // Link this method to your "Create Model" button in the Unity Inspector
         public void CreateNewModel()
         {
-            Debug.Log("[ModelRepositoryUI] Creating new model and saving to database...");
-            ModelData newModel = new ModelData 
-            { 
-                name = "New Scan " + Random.Range(10, 99), 
-                glbUrl = "NewModel.glb", 
-                thumbnailUrl = "Newly Captured 3D Model" 
-            };
-            
-            FirestoreManager.Instance.SaveModel(newModel);
-            
-            // Wait briefly for save to complete before refreshing UI to show the new model
-            Invoke(nameof(RefreshModelsFromDatabase), 1.0f);
+            Debug.Log("[ModelRepositoryUI] Creating new model and saving to this device...");
+
+            ScanNaming.BuildTodaysName(scanName =>
+            {
+                if (this == null || ModelCatalog.Instance == null) return;
+
+                ModelData newModel = new ModelData
+                {
+                    name = scanName,
+                    glbUrl = "NewModel.glb",
+                    description = "Newly Captured 3D Model"
+                };
+
+                // Saving is a PlayerPrefs write now, so the grid can be rebuilt straight away
+                // instead of guessing at how long a round trip takes.
+                ModelCatalog.Instance.SaveModel(newModel);
+                RefreshModelsFromDatabase();
+            });
         }
 
         private void BuildGrid()
@@ -156,9 +184,48 @@ namespace AuraSync.UI
                 var card = go.GetComponent<ModelCardUI>();
                 if (card != null)
                 {
-                    card.Setup(entry.displayName, entry.description, entry.fileName, OnCardSelected);
+                    ModelEntry captured = entry; // per-card copy for the closure
+                    card.Setup(entry.displayName, entry.description, entry.fileName, OnCardSelected,
+                               () => DeleteModel(captured, card));
                 }
             }
+        }
+
+        /// <summary>
+        /// Removes a model from the list and frees its downloaded copy on this phone.
+        /// This is a device-local action: a scan is deleted outright, while a catalogue model is
+        /// only hidden here, since models.json is shared and read-only. Nobody else's list changes.
+        /// </summary>
+        private void DeleteModel(ModelEntry entry, ModelCardUI card)
+        {
+            if (ModelCatalog.Instance == null || string.IsNullOrEmpty(entry.id))
+            {
+                card?.ResetDelete();
+                return;
+            }
+
+            ModelCatalog.Instance.DeleteModel(entry.id, ok =>
+            {
+                if (this == null) return;
+
+                if (!ok)
+                {
+                    if (card != null) card.ResetDelete();
+                    return;
+                }
+
+                AuraSync.Space.SpaceSceneManager.DeleteCachedModel(entry.fileName);
+
+                // Don't leave the viewer pointing at a model that no longer exists.
+                if (PlayerPrefs.GetString("SelectedModelFile", "") == entry.fileName)
+                {
+                    PlayerPrefs.DeleteKey("SelectedModelFile");
+                    PlayerPrefs.Save();
+                }
+
+                _models.Remove(entry);
+                BuildGrid();
+            });
         }
 
         private void OnCardSelected(string fileName)

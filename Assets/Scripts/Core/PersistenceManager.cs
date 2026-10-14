@@ -145,6 +145,7 @@ namespace AuraSync.Core
                     ActiveEnvironment.notes[i] = updated;
                     ActiveEnvironment.lastModified = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     SaveAllData();
+                    Networking.ItemSync.BroadcastUpdate(updated);
                     Debug.Log($"[AuraSync] Note updated: {updated.id}");
                     return;
                 }
@@ -156,9 +157,13 @@ namespace AuraSync.Core
         {
             if (ActiveEnvironment == null) return;
 
+            // Captured before removal: the broadcast needs to know whether it was shared at all.
+            NoteItemData removed = ActiveEnvironment.notes.Find(n => n.id == noteId);
+
             ActiveEnvironment.notes.RemoveAll(n => n.id == noteId);
             ActiveEnvironment.lastModified = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             SaveAllData();
+            Networking.ItemSync.BroadcastDelete(removed);
             Debug.Log($"[AuraSync] Note removed: {noteId}");
         }
 
@@ -193,6 +198,7 @@ namespace AuraSync.Core
                     ActiveEnvironment.objects[i] = updated;
                     ActiveEnvironment.lastModified = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
                     SaveAllData();
+                    Networking.ItemSync.BroadcastUpdate(updated);
                     Debug.Log($"[AuraSync] Object updated: {updated.id}");
                     return;
                 }
@@ -204,9 +210,12 @@ namespace AuraSync.Core
         {
             if (ActiveEnvironment == null) return;
 
+            ObjectItemData removed = ActiveEnvironment.objects.Find(o => o.id == objId);
+
             ActiveEnvironment.objects.RemoveAll(o => o.id == objId);
             ActiveEnvironment.lastModified = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             SaveAllData();
+            Networking.ItemSync.BroadcastDelete(removed);
             Debug.Log($"[AuraSync] Object removed: {objId}");
         }
 

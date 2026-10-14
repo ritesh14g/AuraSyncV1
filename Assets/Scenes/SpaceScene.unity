@@ -1753,6 +1753,7 @@ MonoBehaviour:
   minScale: 0.05
   maxScale: 5
   panSpeed: 0.003
+  remoteInterpolationSpeed: 18
 --- !u!114 &1878687507
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1765,8 +1766,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5d1ca2071e1eb0046aabc4f548f219f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  fallbackMaterial: {fileID: 2100000, guid: 4cdfb9af7bc1ef441b0d984b1afdb72c, type: 2}
-  debugLogging: 1
+  verboseLogging: 0
 --- !u!1 &1958291792
 GameObject:
   m_ObjectHideFlags: 0

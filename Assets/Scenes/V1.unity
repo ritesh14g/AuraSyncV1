@@ -7836,7 +7836,7 @@ GameObject:
   - component: {fileID: 1223135913}
   - component: {fileID: 1223135912}
   m_Layer: 0
-  m_Name: FirestoreManager
+  m_Name: ModelCatalog
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -7854,6 +7854,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 596df95f0484a2e4a81200415e4e87f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  manifestUrl: https://huggingface.co/datasets/Ritesh121/ARModels/resolve/main/models.json
 --- !u!4 &1223135913
 Transform:
   m_ObjectHideFlags: 0
@@ -12814,7 +12815,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1921137294}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ed4f6f968642b714299ba5b2e302205d, type: 3}
   m_Name: 
@@ -12863,7 +12864,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   Session: {fileID: 521253612}
-  SessionOrigin: {fileID: 1335582275}
+  Origin: {fileID: 0}
   CameraManager: {fileID: 858117784}
   ARCoreExtensionsConfig: {fileID: 11400000, guid: edca2b0bc0b3d5b4ba9b4583df2b7d33, type: 2}
   CameraConfigFilter: {fileID: 0}
@@ -13439,6 +13440,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   broadcastInterval: 0.05
+  heartbeatInterval: 1
 --- !u!114 &1972201037
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13453,6 +13455,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   broadcastInterval: 0.1
   pointerPrefab: {fileID: 4697693437716433692, guid: b3096240328e17c489a71eca26f739b5, type: 3}
+  smoothing: 15
 --- !u!114 &1972201038
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -13478,7 +13481,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 28eadfb7ce9e1d142b0e298cc5330272, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  roomName: AuraSyncRoom
+  fixedRegion: asia
+  appVersion: 1.0
   avatarPrefabName: PlayerAvatar
 --- !u!114 &1972201040
 MonoBehaviour:

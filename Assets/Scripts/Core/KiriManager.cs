@@ -24,6 +24,11 @@ namespace AuraSync.Core
             }
         }
 
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
         public void StartCapture()
         {
             Debug.Log("[KiriManager] Starting Mock Capture Process...");
