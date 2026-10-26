@@ -15,8 +15,9 @@ namespace AuraSync.Networking
     /// 1. Photon Voice 2 (used whenever the package is installed and App Id Voice is set)
     ///    The same stack as a WhatsApp-style call: Opus at 48 kHz, Android's call-mode microphone
     ///    with hardware echo cancellation / noise suppression / gain control, WebRTC processing
-    ///    for anything the phone lacks, voice activity detection, forward error correction and an
-    ///    adaptive playback buffer. Built entirely in code (no prefab); see BuildPhotonVoice().
+    ///    for anything the phone lacks, a double-talk-safe send gate (VoiceTalkGate), forward error
+    ///    correction and an adaptive playback buffer. Built entirely in code (no prefab); see
+    ///    BuildPhotonVoiceClient() and AttachPhotonRecorder().
     ///    The package defines PHOTON_VOICE_R4 itself, so no scripting define has to be added.
     ///
     /// 2. Built-in fallback (no package, or App Id Voice left empty)
@@ -112,6 +113,10 @@ namespace AuraSync.Networking
         private float _diagRmsSum;
         private int   _diagRmsCount;
         private float _diagPeak;
+        // Longest frame in the window. Photon Voice reads the mic and sends from the main thread, so
+        // a long frame on the SENDER holds its voice back and releases it in a burst: on the other
+        // phone that is heard as lag or break-up even on a perfect network.
+        private float _diagHitch;
         private readonly Dictionary<int, int> _diagReceived = new Dictionary<int, int>();
 
         // Microphone watchdog: some Android devices hand Unity a microphone that runs but only
@@ -145,6 +150,8 @@ namespace AuraSync.Networking
         private AuraSyncVoiceClient _pvClient;
         private Photon.Voice.Unity.Recorder _pvRecorder;
         private Photon.Voice.Unity.WebRtcAudioDsp _pvDsp;
+        private VoiceTalkGate _pvGate;
+        private string _pvDuplex = "-"; // last 5 s of double-talk, for the on-screen line
         private bool  _pvSpeaking;
         private float _pvLastVoiceAt  = -999f;
         private float _pvRejoinTimer;
@@ -153,6 +160,29 @@ namespace AuraSync.Networking
 #endif
 
         // ── Lifecycle ───────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Low-latency audio output, set once at launch before anything plays (a reset stops all
+        /// sounds). The project's mixer buffer was 1024 samples ("best performance"); Unity stacks
+        /// several of those before the phone's own output path, which adds up to well over 100 ms on
+        /// every voice heard. 512 halves that while staying safe for heavier 3D scenes. 48 kHz output
+        /// matches Opus and the echo canceller; one phone was found running at 24 kHz, so every voice
+        /// and the echo reference were being resampled (2026-10-16).
+        /// </summary>
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void ConfigureLowLatencyAudio()
+        {
+            AudioConfiguration cfg = AudioSettings.GetConfiguration();
+            int oldBuffer = cfg.dspBufferSize, oldRate = cfg.sampleRate;
+            bool change = false;
+            if (cfg.dspBufferSize == 0 || cfg.dspBufferSize > 512) { cfg.dspBufferSize = 512; change = true; }
+            if (cfg.sampleRate != 48000)                             { cfg.sampleRate    = 48000; change = true; }
+            if (!change) return;
+
+            bool ok = AudioSettings.Reset(cfg);
+            Debug.Log($"[AuraSync Voice] Audio output {(ok ? "set" : "could NOT be set")} for low latency: buffer " +
+                      $"{oldBuffer} -> {AudioSettings.GetConfiguration().dspBufferSize}, rate {oldRate} -> {AudioSettings.outputSampleRate} Hz.");
+        }
 
         void Awake()
         {
@@ -386,7 +416,10 @@ namespace AuraSync.Networking
             }
             else
             {
-                rec.MicrophoneType = Photon.Voice.Unity.Recorder.MicType.Unity;
+                // Unity's microphone, through our own reader: Photon's MicWrapper could fall a second
+                // behind for good after a long frame (see RealtimeMicReader).
+                rec.SourceType   = Photon.Voice.Unity.Recorder.InputSourceType.Factory;
+                rec.InputFactory = () => new RealtimeMicReader(null, 48000);
             }
             // No silent switch to the other microphone type: falling back from Unity's mic would bring
             // back call mode and its audio-focus/routing side effects without anyone noticing.
@@ -407,14 +440,21 @@ namespace AuraSync.Networking
             dsp.NoiseSuppressionLevel = _hwNs ? Photon.Voice.WebRTCAudioProcessor.NSLevel.Low
                                               : Photon.Voice.WebRTCAudioProcessor.NSLevel.Moderate;
             dsp.HighPass              = true;  // removes handling rumble from a phone held in the hand
-            dsp.VAD                   = true;  // send nothing while nobody speaks
-            dsp.VadLikelihood         = Photon.Voice.WebRTCAudioProcessor.VADLikelihood.VeryLow; // most permissive: never drop real speech
+            // No WebRTC voice detector. It was the cause of calls being one-way at a time (2026-10-16):
+            // it runs after the echo canceller, so while the other person's voice played here this
+            // phone's own, partly suppressed speech failed it and was never sent. (VeryLow, which the
+            // old code chose as "most permissive", is in fact its most aggressive setting.)
+            // VoiceTalkGate below decides what is sent instead.
+            dsp.VAD                   = false;
 
             recGo.AddComponent<VoiceFecTuner>();
             recGo.AddComponent<VoiceRecordingTap>(); // session recordings keep the presenter's voice (Phase 9)
+            var gate = recGo.AddComponent<VoiceTalkGate>(); // after the DSP: judges the echo-cancelled signal
 
             _pvRecorder = rec;
             _pvDsp      = dsp;
+            _pvGate     = gate;
+            _pvDuplex   = "-";
             _pvClient.AddRecorder(rec);
 
             // RecordWhenJoined only fires on the join itself; if the voice room was joined while the
@@ -458,6 +498,7 @@ namespace AuraSync.Networking
             _pvClient   = null;
             _pvRecorder = null;
             _pvDsp      = null;
+            _pvGate     = null;
             _pvSpeaking = false;
 #endif
             UsingPhotonVoice = false;
@@ -644,6 +685,7 @@ namespace AuraSync.Networking
 
         void Update()
         {
+            if (Time.unscaledDeltaTime > _diagHitch) _diagHitch = Time.unscaledDeltaTime;
             PollSpeaking();
             LogDiagnostics();
 
@@ -1081,7 +1123,10 @@ namespace AuraSync.Networking
         {
             if (_pvRecorder == null || !PhotonNetwork.InRoom) return;
 
-            if (!_isMuted && _pvRecorder.IsCurrentlyTransmitting) _pvLastVoiceAt = Time.unscaledTime;
+            // The gate holds the line open through pauses, so "transmitting" is not "talking": the
+            // badge follows the processed speech level instead.
+            bool talking = _pvGate != null ? _pvGate.SpokeWithinMs(100) : _pvRecorder.IsCurrentlyTransmitting;
+            if (!_isMuted && _pvRecorder.TransmitEnabled && talking) _pvLastVoiceAt = Time.unscaledTime;
             bool speaking = Time.unscaledTime - _pvLastVoiceAt < 0.4f;
             if (speaking == _pvSpeaking) return;
             _pvSpeaking = speaking;
@@ -1183,7 +1228,7 @@ namespace AuraSync.Networking
             if (UsingPhotonVoice && _pvClient != null)
                 return $"VOICE {VoiceStatus} | Opus | lvl {MicLevel:F2} | " +
                        $"tx {PacketsSentTotal} rx {PacketsReceivedTotal} lost {_pvClient.FramesLostPercent:F0}% | " +
-                       $"spk {SpeakerSummary()}";
+                       $"spk {SpeakerSummary()} | over {_pvDuplex}";
 #endif
             if (UsingPhotonVoice)
                 return $"VOICE {VoiceStatus} | Opus backend";
@@ -1194,14 +1239,33 @@ namespace AuraSync.Networking
 
 #if PHOTON_VOICE_R4
         /// <summary>
-        /// "playing/linked" speakers, plus the loudest one's level. Separates "nothing arrives" (rx
+        /// Double-talk over the last 5 s, i.e. while a remote voice was audible on this phone:
+        ///   sent       share of this phone's frames that went out (should be ~100% while you talk over them)
+        ///   raw        loudest mic level before processing (your voice plus the loudspeaker's echo)
+        ///   clean      loudest level after echo cancelling (your voice alone; ~0 if you stayed quiet)
+        /// raw high + clean ~0 while you were talking = the echo canceller is suppressing your speech;
+        /// clean high + sent low = frames are being held back (the old one-way fault).
+        /// </summary>
+        private string LogDuplexStats()
+        {
+            if (_pvGate == null) return "gate=none";
+            VoiceTalkGate.Stats s = _pvGate.TakeStats();
+            int pct = s.FramesHearing > 0 ? Mathf.RoundToInt(100f * s.SentHearing / s.FramesHearing) : -1;
+            _pvDuplex = s.FramesHearing > 0 ? $"{pct}% {s.RawPeakHearing:F2}>{s.PeakHearing:F2}" : "-";
+            return $"gate sent={s.Sent}/{s.Frames} peak={s.Peak:F3} noise={_pvGate.NoiseFloor:F3} " +
+                   $"echo={_pvGate.EchoCoupling:F3} | while hearing: frames={s.FramesHearing} " +
+                   $"sent={s.SentHearing} ({(pct < 0 ? "-" : pct + "%")}) raw={s.RawPeakHearing:F3} clean={s.PeakHearing:F3}";
+        }
+
+        /// <summary>
+        /// "playing/linked" speakers, the loudest one's level, and the largest playback buffer / jitter. Separates "nothing arrives" (rx
         /// flat) from "arrives but is not played" (linked but not playing) from "plays but is
         /// silent/inaudible" (playing, out 0.00 = the sender sent silence; out > 0 = it is playing,
         /// so check volume/route on this phone).
         /// </summary>
         private string SpeakerSummary()
         {
-            int linked = 0, playing = 0;
+            int linked = 0, playing = 0, buf = 0, jit = 0;
             float peak = 0f;
             if (_pvRoot != null)
             {
@@ -1211,9 +1275,15 @@ namespace AuraSync.Networking
                     linked++;
                     if (sp.IsPlaying) playing++;
                     if (sp.TryGetComponent(out OutputLevel lvl) && lvl.Peak > peak) peak = lvl.Peak;
+                    if (sp.TryGetComponent(out AdaptivePlayDelay apd))
+                    {
+                        buf = Mathf.Max(buf, apd.DelayMs);
+                        jit = Mathf.Max(jit, apd.JitterMs);
+                    }
                 }
             }
-            return $"{playing}/{linked} out {peak:F2}";
+            // buf = playback buffer now, jit = worst arrival lateness in the last 30 s (both ms).
+            return $"{playing}/{linked} out {peak:F2} buf {buf} jit {jit}";
         }
 #endif
 
@@ -1252,13 +1322,17 @@ namespace AuraSync.Networking
             {
 #if PHOTON_VOICE_R4
                 if (_pvClient != null)
+                {
+                    string duplex = LogDuplexStats();
                     Debug.Log($"[AuraSync Voice] 5s | backend=PhotonVoice state={_pvClient.ClientState} " +
                               $"room='{(_pvClient.Client.CurrentRoom != null ? _pvClient.Client.CurrentRoom.Name : "-")}' " +
                               $"muted={_isMuted} recording={(_pvRecorder != null && _pvRecorder.RecordingEnabled)} " +
                               $"transmitting={(_pvRecorder != null && _pvRecorder.IsCurrentlyTransmitting)} " +
                               $"level={MicLevel:F3} framesSent={PacketsSentTotal} framesReceived={PacketsReceivedTotal} " +
                               $"rx/s={_pvClient.FramesReceivedPerSecond:F0} lost={_pvClient.FramesLostPercent:F1}% " +
-                              $"status='{VoiceStatus}'");
+                              $"spk={SpeakerSummary()} hitch={_diagHitch * 1000f:F0}ms " +
+                              $"micSkips={RealtimeMicReader.Skips}/{RealtimeMicReader.SkippedMs}ms {duplex} status='{VoiceStatus}'");
+                }
 #endif
             }
             else
@@ -1276,6 +1350,7 @@ namespace AuraSync.Networking
             _diagRmsSum = 0f;
             _diagRmsCount = 0;
             _diagPeak = 0f;
+            _diagHitch = 0f;
             _diagReceived.Clear();
         }
 
