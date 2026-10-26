@@ -48,34 +48,129 @@ namespace AuraSync.AI
     }
 
     /// <summary>
-    /// All of this session's conversations, so closing the chat and reopening it on the same part
-    /// carries on where it left off, and switching parts keeps the other conversations. Forgotten
-    /// when a different model loads.
+    /// Every conversation for the model on screen, kept on the phone so it carries on next time:
+    /// closing the chat and reopening it on the same part continues where it left off, each part
+    /// keeps its own conversation, and coming back to the model (even after restarting the app)
+    /// brings them all back. One file per model:
+    /// <c>&lt;persistentDataPath&gt;/Chats/&lt;md5 of the model URL&gt;.json</c>.
     /// </summary>
     public static class PartChatStore
     {
         private static readonly Dictionary<string, ChatThread> _threads = new Dictionary<string, ChatThread>();
-        private static string _modelKey = "";
+        private static string _modelKey = null;
+
+        [Serializable] private class SavedMessage
+        {
+            public bool fromUser, isIntro, isError, fromRoom;
+            public string text = "", provider = "", model = "", sharedId = "", id = "";
+            public long latencyMs;
+            public int rating;
+        }
+        [Serializable] private class SavedThread
+        {
+            public string key = "", title = "", lastQuestion = "";
+            public List<string> suggestions = new List<string>();
+            public List<SavedMessage> messages = new List<SavedMessage>();
+        }
+        [Serializable] private class SavedFile { public List<SavedThread> threads = new List<SavedThread>(); }
 
         public static ChatThread Get(string modelKey, string threadKey, Func<ChatThread> create)
         {
-            if (modelKey != _modelKey)
-            {
-                foreach (ChatThread t in _threads.Values) t.pending?.Cancel();
-                _threads.Clear();
-                _modelKey = modelKey;
-            }
-
+            Switch(modelKey);
             if (!_threads.TryGetValue(threadKey, out ChatThread thread))
             {
                 thread = create();
                 thread.key = threadKey;
                 _threads[threadKey] = thread;
+                Save();
             }
             return thread;
         }
 
         public static int Count => _threads.Count;
+
+        /// <summary>Writes this model's conversations to the phone (after each question, answer or rating).</summary>
+        public static void Save()
+        {
+            if (string.IsNullOrEmpty(_modelKey)) return;
+            try
+            {
+                var file = new SavedFile();
+                foreach (ChatThread t in _threads.Values)
+                {
+                    var st = new SavedThread { key = t.key, title = t.title, lastQuestion = t.lastQuestion,
+                                               suggestions = new List<string>(t.suggestions ?? new List<string>()) };
+                    foreach (ChatMessage m in t.messages)
+                        st.messages.Add(new SavedMessage
+                        {
+                            fromUser = m.fromUser, isIntro = m.isIntro, isError = m.isError, fromRoom = m.fromRoom,
+                            text = m.text, provider = m.provider, model = m.model, sharedId = m.sharedId, id = m.id,
+                            latencyMs = m.latencyMs, rating = m.rating,
+                        });
+                    file.threads.Add(st);
+                }
+                Directory.CreateDirectory(Path.GetDirectoryName(PathFor(_modelKey)));
+                File.WriteAllText(PathFor(_modelKey), JsonUtility.ToJson(file));
+            }
+            catch (Exception ex) { Debug.LogWarning($"[PartChatStore] Could not save chats: {ex.Message}"); }
+        }
+
+        /// <summary>Forgets this model's conversations, on screen and on the phone ("Clear chat").</summary>
+        public static void Clear(string modelKey)
+        {
+            Switch(modelKey);
+            foreach (ChatThread t in _threads.Values) t.pending?.Cancel();
+            _threads.Clear();
+            try { if (File.Exists(PathFor(modelKey))) File.Delete(PathFor(modelKey)); } catch { }
+        }
+
+        private static void Switch(string modelKey)
+        {
+            if (modelKey == _modelKey) return;
+            foreach (ChatThread t in _threads.Values) t.pending?.Cancel();
+            _threads.Clear();
+            _modelKey = modelKey;
+            Load();
+        }
+
+        private static void Load()
+        {
+            if (string.IsNullOrEmpty(_modelKey)) return;
+            string path = PathFor(_modelKey);
+            if (!File.Exists(path)) return;
+            try
+            {
+                var file = JsonUtility.FromJson<SavedFile>(File.ReadAllText(path));
+                if (file == null || file.threads == null) return;
+                foreach (SavedThread st in file.threads)
+                {
+                    var t = new ChatThread { key = st.key ?? "", title = st.title ?? "", lastQuestion = st.lastQuestion ?? "",
+                                             suggestions = st.suggestions ?? new List<string>() };
+                    foreach (SavedMessage sm in st.messages)
+                        t.messages.Add(new ChatMessage
+                        {
+                            fromUser = sm.fromUser, isIntro = sm.isIntro, isError = sm.isError, fromRoom = sm.fromRoom,
+                            text = sm.text ?? "", provider = sm.provider ?? "", model = sm.model ?? "",
+                            sharedId = sm.sharedId ?? "", id = string.IsNullOrEmpty(sm.id) ? Guid.NewGuid().ToString("N").Substring(0, 12) : sm.id,
+                            latencyMs = sm.latencyMs, rating = sm.rating,
+                        });
+                    _threads[t.key] = t;
+                }
+                Debug.Log($"[PartChatStore] Restored {_threads.Count} conversation(s) for this model.");
+            }
+            catch (Exception ex) { Debug.LogWarning($"[PartChatStore] Could not read saved chats: {ex.Message}"); }
+        }
+
+        private static string PathFor(string modelKey)
+        {
+            using (var md5 = System.Security.Cryptography.MD5.Create())
+            {
+                byte[] h = md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(modelKey ?? ""));
+                var sb = new System.Text.StringBuilder();
+                foreach (byte b in h) sb.Append(b.ToString("x2"));
+                return Path.Combine(Application.persistentDataPath, "Chats", sb + ".json");
+            }
+        }
     }
 
     /// <summary>
