@@ -97,7 +97,8 @@ namespace AuraSync.UI
             StartCoroutine(BindNetworkWhenReady());
 
             // First screen of the app: offer create / join right away.
-            if (showOnStartup && !_shownOnStartup && !PhotonNetwork.InRoom)
+            // With the new onboarding, joining lives in Interactive mode instead.
+            if (showOnStartup && !_shownOnStartup && !PhotonNetwork.InRoom && !OnboardingFlow.UseNewOnboarding)
             {
                 _shownOnStartup = true;
                 ShowModal();
@@ -310,6 +311,16 @@ namespace AuraSync.UI
 
         void Update()
         {
+            // The floating ROOM button stays off the onboarding screens; the 3D viewer keeps it.
+            if (_launcherCanvas != null)
+            {
+                // The 3D viewer has its own Room button in the top-right corner.
+                // With the new onboarding the old floating square is retired altogether: the
+                // onboarding has Join room, and the viewer has its Room button.
+                bool want = !OnboardingFlow.UseNewOnboarding && !OnboardingFlow.IsActive && !SpaceSessionHUD.Active;
+                if (_launcherCanvas.activeSelf != want) _launcherCanvas.SetActive(want);
+            }
+
             if (_voiceStatusText == null) return;
 
             var voice = AuraSync.Networking.VoiceChatManager.Instance;

@@ -1,5 +1,6 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.XR.ARFoundation;
 using AuraSync.Core;
 using AuraSync.Data;
@@ -13,9 +14,11 @@ namespace AuraSync
     /// SETUP: Attach to a dedicated "AuraSyncBootstrapper" GameObject in the scene.
     /// This should run AFTER AR Session and XR Origin are initialized.
     ///
-    /// STATUS (v1.1): No changes needed here.
-    /// _hasInitialized is correctly declared as instance (non-static) bool,
-    /// so it resets to false on every fresh app launch. ✓
+    /// It lives on V1's AuraSyncManagers object, which its managers make DontDestroyOnLoad. When
+    /// V1 loads again (Back from the 3D viewer), the scene's fresh copy of that object is destroyed
+    /// as a duplicate before its Start runs, so this surviving bootstrapper sets the reloaded scene
+    /// up itself (launch screen, managers, AR wait, saved items, Idle) from SceneManager.sceneLoaded.
+    /// Without that, coming back left a bare camera view with nothing working.
     /// </summary>
     public class SceneBootstrapper : MonoBehaviour
     {
@@ -26,10 +29,40 @@ namespace AuraSync
         // ✓ CORRECT — non-static: resets to false on every app start
         private bool _hasInitialized = false;
 
+        private string _homeScene;
+        private Coroutine _init;
+
         void Start()
         {
             if (_hasInitialized) return;
             _hasInitialized = true;
+
+            _homeScene = SceneManager.GetActiveScene().name;
+            SceneManager.sceneLoaded += OnSceneLoaded;
+            SetUpScene();
+        }
+
+        void OnDestroy()
+        {
+            if (_hasInitialized) SceneManager.sceneLoaded -= OnSceneLoaded;
+        }
+
+        /// <summary>V1 again (Back from the 3D viewer): set the fresh scene up as at launch.</summary>
+        private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            if (mode != LoadSceneMode.Single) return;
+            if (_init != null) { StopCoroutine(_init); _init = null; } // an AR wait from the last visit
+            if (scene.name != _homeScene) return;
+            Debug.Log($"[AuraSync] SceneBootstrapper: back in {scene.name}; setting it up again.");
+            SetUpScene();
+        }
+
+        private void SetUpScene()
+        {
+            // The launch screen first: whatever else fails below, the person can still use the app
+            // (coming back from the 3D viewer once left only a black camera view and the old ROOM
+            // square when something here threw before the onboarding was created).
+            Safe("onboarding", UI.OnboardingFlow.EnsureExists);
 
             // Networking, voice and the lobby do not depend on AR tracking, and UI scripts
             // subscribe to these managers in their own Start(). Create them first, before the
@@ -40,7 +73,7 @@ namespace AuraSync
             Debug.Log("[AuraSync] ═══════════════════════════════════════");
             Debug.Log("[AuraSync]  AuraSync AR Ecosystem v1.0 Starting");
             Debug.Log("[AuraSync] ═══════════════════════════════════════");
-            StartCoroutine(InitializeWithDelay());
+            _init = StartCoroutine(InitializeWithDelay());
         }
 
         private IEnumerator InitializeWithDelay()
@@ -67,7 +100,7 @@ namespace AuraSync
             Debug.Log("[AuraSync] SceneBootstrapper: Waiting for AR session to begin tracking...");
 
             // Delegate platform-specific AR wait to a helper so Play Mode works immediately
-            yield return StartCoroutine(WaitForARSession());
+            yield return WaitForARSession();
 
             // Wait one extra frame so all Awake()/Start() on other scripts have run
             yield return null;
@@ -84,71 +117,111 @@ namespace AuraSync
             AppStateManager.Instance?.SetMode(AppMode.Idle);
 
             Debug.Log($"[AuraSync] Initialized: {env.environmentName} | Notes: {env.notes.Count} | Objects: {env.objects.Count}");
+            _init = null;
+        }
+
+        /// <summary>
+        /// Runs one start-up step; an exception is logged and the next step still runs, so one
+        /// broken manager can no longer take the rest of the app down with it.
+        /// </summary>
+        private static void Safe(string what, System.Action step)
+        {
+            try { step(); }
+            catch (System.Exception ex) { Debug.LogError($"[AuraSync] Start-up step '{what}' failed: {ex}"); }
         }
 
         private void EnsureNetworkingManagers()
         {
             // Admin/zone state. NetworkManager and the HUDs read ZoneManager.IsAdmin, so it must
             // exist even if the scene did not ship one.
-            if (Networking.ZoneManager.Instance == null)
+            Safe("zone", () =>
             {
-                GameObject zoneGo = new GameObject("AuraSync_ZoneManager");
-                zoneGo.AddComponent<Networking.ZoneManager>();
-            }
+                if (Networking.ZoneManager.Instance == null)
+                {
+                    GameObject zoneGo = new GameObject("AuraSync_ZoneManager");
+                    zoneGo.AddComponent<Networking.ZoneManager>();
+                }
+            });
 
-            Networking.NetworkManager.EnsureExists();
+            Safe("network", () => Networking.NetworkManager.EnsureExists());
 
             // Who drives explode / isolate / highlight for the room (V3 Phase 1).
-            Networking.ControlOwnership.EnsureExists();
+            Safe("control ownership", () => Networking.ControlOwnership.EnsureExists());
 
-            if (Networking.UserPresence.Instance == null)
+            Safe("presence", () =>
             {
-                GameObject presGo = new GameObject("AuraSync_UserPresence");
-                var pv = presGo.AddComponent<Photon.Pun.PhotonView>();
-                pv.ViewID = Networking.UserPresence.PresenceViewId;
-                Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
-                presGo.AddComponent<Networking.UserPresence>();
-            }
+                if (Networking.UserPresence.Instance == null)
+                {
+                    GameObject presGo = new GameObject("AuraSync_UserPresence");
+                    var pv = presGo.AddComponent<Photon.Pun.PhotonView>();
+                    pv.ViewID = Networking.UserPresence.PresenceViewId;
+                    Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
+                    presGo.AddComponent<Networking.UserPresence>();
+                }
+            });
 
-            if (Networking.VoiceChatManager.Instance == null)
+            Safe("voice", () =>
             {
-                GameObject voiceGo = new GameObject("AuraSync_VoiceChatManager");
-                voiceGo.AddComponent<Networking.VoiceChatManager>();
-            }
+                if (Networking.VoiceChatManager.Instance == null)
+                {
+                    GameObject voiceGo = new GameObject("AuraSync_VoiceChatManager");
+                    voiceGo.AddComponent<Networking.VoiceChatManager>();
+                }
+            });
 
-            if (Networking.AdminBroadcastManager.Instance == null)
+            Safe("admin broadcast", () =>
             {
-                GameObject adminGo = new GameObject("AuraSync_AdminBroadcastManager");
-                adminGo.AddComponent<Networking.AdminBroadcastManager>();
-            }
+                if (Networking.AdminBroadcastManager.Instance == null)
+                {
+                    GameObject adminGo = new GameObject("AuraSync_AdminBroadcastManager");
+                    adminGo.AddComponent<Networking.AdminBroadcastManager>();
+                }
+            });
 
-            if (Networking.ModelSyncManager.Instance == null)
+            Safe("model sync", () =>
             {
-                GameObject modelSyncGo = new GameObject("AuraSync_ModelSyncManager");
-                var pv = modelSyncGo.AddComponent<Photon.Pun.PhotonView>();
-                pv.ViewID = 995;
-                Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
-                modelSyncGo.AddComponent<Networking.ModelSyncManager>();
-            }
+                if (Networking.ModelSyncManager.Instance == null)
+                {
+                    GameObject modelSyncGo = new GameObject("AuraSync_ModelSyncManager");
+                    var pv = modelSyncGo.AddComponent<Photon.Pun.PhotonView>();
+                    pv.ViewID = 995;
+                    Photon.Pun.PhotonNetwork.RegisterPhotonView(pv);
+                    modelSyncGo.AddComponent<Networking.ModelSyncManager>();
+                }
+            });
 
-            if (Networking.FollowAdminController.Instance == null)
+            Safe("follow presenter", () =>
             {
-                GameObject followGo = new GameObject("AuraSync_FollowAdminController");
-                followGo.AddComponent<Networking.FollowAdminController>();
-            }
+                if (Networking.FollowAdminController.Instance == null)
+                {
+                    GameObject followGo = new GameObject("AuraSync_FollowAdminController");
+                    followGo.AddComponent<Networking.FollowAdminController>();
+                }
+            });
 
-            if (UI.RoomLobbyUI.Instance == null)
+            Safe("room lobby", () =>
             {
-                GameObject lobbyGo = new GameObject("AuraSync_RoomLobby");
-                lobbyGo.AddComponent<UI.RoomLobbyUI>();
-            }
+                if (UI.RoomLobbyUI.Instance == null)
+                {
+                    GameObject lobbyGo = new GameObject("AuraSync_RoomLobby");
+                    lobbyGo.AddComponent<UI.RoomLobbyUI>();
+                }
+            });
 
             // Joins a room when the app is opened from an invite link
-            if (Networking.DeepLinkHandler.Instance == null)
+            Safe("deep links", () =>
             {
-                GameObject linkGo = new GameObject("AuraSync_DeepLinkHandler");
-                linkGo.AddComponent<Networking.DeepLinkHandler>();
-            }
+                if (Networking.DeepLinkHandler.Instance == null)
+                {
+                    GameObject linkGo = new GameObject("AuraSync_DeepLinkHandler");
+                    linkGo.AddComponent<Networking.DeepLinkHandler>();
+                }
+            });
+
+            // The launch screen (Play / Interactive) and everything before a room. Built in code;
+            // switch it off with OnboardingFlow.UseNewOnboarding to get the old screens back.
+            // (Also made first thing in Start; this is a no-op when it already exists.)
+            Safe("onboarding", UI.OnboardingFlow.EnsureExists);
         }
 
         /// <summary>

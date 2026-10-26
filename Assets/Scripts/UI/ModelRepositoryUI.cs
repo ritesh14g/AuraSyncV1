@@ -46,6 +46,15 @@ namespace AuraSync.UI
         {
             if (backButton != null) backButton.onClick.AddListener(ClosePanel);
 
+            // The new onboarding UI has its own model list; it also takes the "reopen the list"
+            // request left by the viewer's Back, so this panel must not consume it.
+            if (OnboardingFlow.UseNewOnboarding)
+            {
+                SetPanelActive(false);
+                if (panelGroup == null) gameObject.SetActive(false);
+                return;
+            }
+
             // REPORTS on the model list too, so reports open with no model and no room (Phase 11).
             ReportsUI.AddButtonTo(panel);
 

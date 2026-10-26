@@ -70,6 +70,9 @@ namespace AuraSync.UI
 
             // Cache FAB label if present (optional)
             _fabLabel = fabButton.GetComponentInChildren<TextMeshProUGUI>();
+
+            // The new launch screen replaces the + button and its sheet.
+            if (OnboardingFlow.UseNewOnboarding) fabButton.gameObject.SetActive(false);
         }
 
         void Start()

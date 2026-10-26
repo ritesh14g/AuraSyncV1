@@ -29,15 +29,30 @@ namespace AuraSync.Core
             if (Instance == this) Instance = null;
         }
 
-        public void StartCapture()
+        private Coroutine _running;
+
+        public bool IsRunning => _running != null;
+
+        /// <summary>Starts the mock KIRI job. duration = seconds of simulated processing.</summary>
+        public void StartCapture(float duration = 3f)
         {
             Debug.Log("[KiriManager] Starting Mock Capture Process...");
-            StartCoroutine(MockCaptureRoutine());
+            CancelCapture();
+            _running = StartCoroutine(MockCaptureRoutine(duration));
         }
 
-        private IEnumerator MockCaptureRoutine()
+        /// <summary>Stops a running mock job; no OnModelReady will follow.</summary>
+        public void CancelCapture()
         {
-            float duration = 3.0f; // Simulate 3 seconds of processing
+            if (_running == null) return;
+            StopCoroutine(_running);
+            _running = null;
+            Debug.Log("[KiriManager] Mock capture cancelled.");
+        }
+
+        private IEnumerator MockCaptureRoutine(float duration)
+        {
+            duration = Mathf.Max(0.5f, duration);
             float elapsed = 0f;
 
             while (elapsed < duration)
@@ -55,6 +70,7 @@ namespace AuraSync.Core
             string dummyUrl = "https://huggingface.co/datasets/Ritesh121/ARModels/resolve/main/House.glb";
             
             Debug.Log($"[KiriManager] Mock Capture Complete! Returning URL: {dummyUrl}");
+            _running = null;
             OnModelReady?.Invoke(dummyUrl);
         }
     }

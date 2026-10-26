@@ -90,7 +90,8 @@ namespace AuraSync.UI
             {
                 // Show scanning hint immediately on app open
                 hintText.text      = "Move camera slowly to detect surfaces";
-                hintText.color     = HintColor;
+                // The new onboarding UI shows its own placing hint; this one would sit under it.
+                hintText.color     = OnboardingFlow.UseNewOnboarding ? HiddenColor : HintColor;
                 hintText.fontSize  = 18f;
                 hintText.fontStyle = FontStyles.Bold;
             }
@@ -127,6 +128,8 @@ namespace AuraSync.UI
 
         private IEnumerator ShowDetectedThenRestore()
         {
+            if (OnboardingFlow.UseNewOnboarding) yield break; // its fade would flash the hidden hint
+
             if (hintText != null)
                 hintText.text = "Surface detected \u2014 tap to place";
 
@@ -189,7 +192,7 @@ namespace AuraSync.UI
 
         private void ShowHint(string message)
         {
-            if (!hintText) return;
+            if (!hintText || OnboardingFlow.UseNewOnboarding) return;
             hintText.text  = message;
             hintText.color = HintColor;
         }

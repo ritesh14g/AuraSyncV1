@@ -58,6 +58,9 @@ namespace AuraSync.UI
                 var trigger = backdrop.gameObject.GetComponent<Button>() ?? backdrop.gameObject.AddComponent<Button>();
                 trigger.onClick.AddListener(CloseSheet);
             }
+
+            // The new launch screen's Interactive mode replaces this corner button and its sheet.
+            if (OnboardingFlow.UseNewOnboarding && spaceButton != null) spaceButton.gameObject.SetActive(false);
         }
 
         public void OpenSheet()

@@ -23,6 +23,10 @@ public class CaptureScreenUI : MonoBehaviour
         // Don't show automatically
         isVisible = false;
 
+        // The new onboarding UI runs the Make model steps and saves the scan itself; listening
+        // here too would save every scan twice.
+        if (AuraSync.UI.OnboardingFlow.UseNewOnboarding) return;
+
         if (KiriManager.Instance != null)
         {
             KiriManager.Instance.OnProgress += HandleProgress;

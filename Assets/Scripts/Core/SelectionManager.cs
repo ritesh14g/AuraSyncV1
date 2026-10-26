@@ -182,6 +182,13 @@ namespace AuraSync.Core
         {
             if (!HasSelection) return;
 
+            // The new onboarding UI owns the note and object editors when it is running.
+            if (UI.OnboardingFlow.IsActive)
+            {
+                UI.OnboardingFlow.Instance.EditPlacedItem(SelectedData, SelectedObject);
+                return;
+            }
+
             if (SelectedData is NoteItemData noteData)
             {
                 var noteEditor = FindObjectOfType<UI.NoteEditorUI>();

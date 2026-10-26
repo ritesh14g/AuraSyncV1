@@ -88,6 +88,14 @@ namespace AuraSync.Core
                 return;
             }
 
+            // While placing, the world takes taps through see-through UI, but never a tap on a
+            // button: pressing Back (or the mode chip) must not also drop the item there.
+            if (mode != AppMode.Idle && IsPointerOverButton(touch.screenPosition))
+            {
+                Debug.Log("[AuraSync] Gesture: Touch on a button during placement, blocking");
+                return;
+            }
+
             _isTracking     = true;
             _touchStartTime = Time.time;
             _touchStartPos  = touch.screenPosition;
@@ -158,6 +166,21 @@ namespace AuraSync.Core
             _isTracking     = false;
             _isDragging     = false;
             _longPressFired = false;
+        }
+
+        /// <summary>True when the point is over anything clickable (a Selectable such as a Button).</summary>
+        public static bool IsPointerOverButton(Vector2 screenPosition)
+        {
+            if (EventSystem.current == null) return false;
+            var eventData = new PointerEventData(EventSystem.current) { position = screenPosition };
+            var results   = new System.Collections.Generic.List<RaycastResult>();
+            EventSystem.current.RaycastAll(eventData, results);
+            foreach (var r in results)
+            {
+                if (r.gameObject != null && r.gameObject.GetComponentInParent<UnityEngine.UI.Selectable>() != null)
+                    return true;
+            }
+            return false;
         }
 
         public static bool IsPointerOverUI(Vector2 screenPosition)
