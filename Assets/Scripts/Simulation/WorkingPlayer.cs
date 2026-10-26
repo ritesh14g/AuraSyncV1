@@ -48,10 +48,23 @@ namespace AuraSync.Simulation
 
         public float LastPhase { get; private set; }
 
-        /// <summary>"Fan rotor, turbine rotor" - what moves, for the panel.</summary>
-        public string MovingNames => string.Join(", ", _movers.Select(m => m.label));
+        /// <summary>"Fan rotor, turbine rotor" - what moves, for the panel. A gear train can have dozens of
+        /// moving parts, so repeats are merged and a long list ends in "and N more".</summary>
+        public string MovingNames
+        {
+            get
+            {
+                List<string> names = _movers.Select(m => m.label).Where(l => !string.IsNullOrEmpty(l)).Distinct().ToList();
+                const int Shown = 4;
+                if (names.Count <= Shown) return string.Join(", ", names);
+                return string.Join(", ", names.Take(Shown)) + $" and {names.Count - Shown} more";
+            }
+        }
 
-        public bool HasAirflow => !IsDayCycle && _movers.Any(m => m.type == "rotate");
+        /// <summary>The knowledge file says this machine's turning parts move no air (a clock, a rover).</summary>
+        private bool _noAirflow;
+
+        public bool HasAirflow => !IsDayCycle && !_noAirflow && _movers.Any(m => m.type == "rotate");
 
         private AirflowEffect _airflow;
         private bool _airflowTried; // built (or found impossible) once per run, not every frame
@@ -59,6 +72,7 @@ namespace AuraSync.Simulation
 
         // Sun: the scene's directional light, put back exactly on Stop.
         private Light _sun;
+        private Color _ambientColor;
         private Quaternion _sunRot;
         private float _sunIntensity;
         private Color _sunColor;
@@ -116,6 +130,7 @@ namespace AuraSync.Simulation
             }
 
             IsDayCycle = _movers.Count == 0;
+            _noAirflow = pk != null && pk.Current != null && pk.Current.noAirflow;
             _built = true;
         }
 
@@ -196,6 +211,7 @@ namespace AuraSync.Simulation
             _sunIntensity = _sun.intensity;
             _sunColor = _sun.color;
             _ambient = RenderSettings.ambientIntensity;
+            _ambientColor = RenderSettings.ambientLight;
         }
 
         private void RestoreSun()
@@ -205,6 +221,7 @@ namespace AuraSync.Simulation
             _sun.intensity = _sunIntensity;
             _sun.color = _sunColor;
             RenderSettings.ambientIntensity = _ambient;
+            RenderSettings.ambientLight = _ambientColor;
             _sun = null;
         }
 
@@ -225,6 +242,8 @@ namespace AuraSync.Simulation
             _sun.color = Color.Lerp(new Color(0.45f, 0.55f, 0.85f), dayCol, day);
             _sun.intensity = Mathf.Lerp(0.18f, _sunIntensity > 0f ? _sunIntensity : 1f, day);
             RenderSettings.ambientIntensity = Mathf.Lerp(0.35f, _ambient > 0f ? _ambient : 1f, day);
+            // The studio uses a flat ambient colour (ambientIntensity only affects skybox ambient).
+            RenderSettings.ambientLight = _ambientColor * Mathf.Lerp(0.35f, 1f, day);
         }
 
         public static string HourText(float hour)

@@ -39,6 +39,13 @@ namespace AuraSync.AI
         /// </summary>
         public bool wholeModelOnly;
 
+        /// <summary>
+        /// True for machines whose turning parts move no air (gears, an orrery, a rover's wheels): the
+        /// Working animation then leaves out the airflow effect, which any model with a rotating part
+        /// gets otherwise. Older files lack it, which reads as false, so the jet engine keeps its airflow.
+        /// </summary>
+        public bool noAirflow;
+
         /// <summary>The AI model that proposed the labels, e.g. "gemini-2.5-flash".</summary>
         public string generatedBy = "";
 

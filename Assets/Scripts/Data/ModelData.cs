@@ -45,4 +45,21 @@ public class ModelData {
     /// <summary>File sizes in bytes (Phase 13), so the app can judge a download before it starts. 0 = unknown.</summary>
     public long previewBytes;
     public long glbBytes;
+
+    /// <summary>
+    /// True for models already optimised at publish time (optimize-model.py): the app then skips its
+    /// runtime mesh simplifier. That one cuts every mesh over 20k triangles to 30% on the main thread,
+    /// which takes minutes on a model with a 475k-triangle plate (the Antikythera) and destroys fine
+    /// detail such as engraved text. False/absent keeps the old behaviour (House, Jet Engine).
+    /// </summary>
+    public bool skipRuntimeSimplify;
+
+    /// <summary>
+    /// How the model is turned when it opens, as Euler angles in degrees (x, y, z), for files whose
+    /// front faces away from the camera (the watch movement opened showing its case back:
+    /// [0, 180, 0]). Applied to the model's anchor, not baked into its parts, so explode
+    /// directions, notes and motion axes (all in the model's own space) are unaffected.
+    /// Empty = as the file has it.
+    /// </summary>
+    public float[] openRotation;
 }

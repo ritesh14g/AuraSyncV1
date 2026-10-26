@@ -152,7 +152,12 @@ namespace AuraSync.Space
             ModelIsolator.Instance?.ApplyQuietly(s.isolation);
             SectionCutter.Instance?.ApplyQuietly(SectionCutter.CutState.Unpack(s.section));
 
-            if (s.hasPose) SpaceInteractionController.Instance?.RestorePose(s.position, s.rotation, s.scale);
+            // The angle and zoom come back; the position does not. A model always opens centred in
+            // front of the camera (the user's rule, 2026-10-16), and a position saved before the
+            // content was centred on its anchor would put it off-screen again.
+            var sic = SpaceInteractionController.Instance;
+            if (s.hasPose && sic != null && sic.ModelRoot != null)
+                sic.RestorePose(sic.ModelRoot.position, s.rotation, s.scale);
 
             Debug.Log($"[ModelStateMemory] Restored '{modelKey}': explode {s.explode:0.##}, isolated '{s.isolation}', " +
                       $"selected '{s.selection}', pose {(s.hasPose ? "yes" : "no")}.");

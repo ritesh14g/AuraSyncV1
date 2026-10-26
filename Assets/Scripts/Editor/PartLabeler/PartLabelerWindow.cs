@@ -155,6 +155,7 @@ namespace AuraSync.EditorTools
 
             draft.context = EditorGUILayout.TextField(new GUIContent("What it is", "A few words, e.g. 'Turbofan jet engine'. Leave empty and the AI suggests one."), draft.context);
             draft.wholeModelOnly = EditorGUILayout.ToggleLeft(new GUIContent("Whole model only (no part labels)", "For models whose pieces are not real parts, such as a 3D scan cut into chunks (the House)."), draft.wholeModelOnly);
+            draft.noAirflow = EditorGUILayout.ToggleLeft(new GUIContent("No airflow in the Working animation", "Tick for machines whose turning parts move no air (gears, an orrery, a rover's wheels). Leave off for fans and turbines (the jet engine)."), draft.noAirflow);
             blindTest = EditorGUILayout.ToggleLeft(new GUIContent("Blind test: hide the file's part and material names from the AI", "For the paper's accuracy test on models whose files already have real part names. The AI then labels from the pictures alone, and its labels can be scored against the real names."), blindTest);
 
             EditorGUILayout.LabelField("Summary");

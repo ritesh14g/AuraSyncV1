@@ -61,10 +61,18 @@ namespace AuraSync.Space
         private bool    _wasTwoFinger = false;
         private Vector2 _lastMousePos;
 
-        private float   _targetRotX;
-        private float   _targetRotY;
-        private float   _currentRotX;
-        private float   _currentRotY;
+        // Rotation is a free quaternion, not yaw + pitch: a drag turns the model about the axis at
+        // right angles to the drag on screen, so left/right, up/down and every slant in between
+        // turn it the way the finger goes, from any angle and right over the top.
+        private Quaternion _targetRot  = Quaternion.identity;
+        private Quaternion _currentRot = Quaternion.identity;
+
+        // Zoom limits are relative to the scale the model was fitted at: models arrive anything
+        // from 0.0006 (the Common Press, in millimetres) to 5x (the Antikythera, in metres), so
+        // fixed limits made the first pinch jump the model to the nearest limit.
+        private float _fitScale;
+        private const float MinZoom = 0.25f, MaxZoom = 6f;
+        private bool _twoFingerTracking;
 
         // Tap detection
         private const float TapMaxSeconds    = 0.3f;
@@ -122,21 +130,28 @@ namespace AuraSync.Space
         {
             if (modelRoot == null) return;
 
-            Vector3 e = modelRoot.rotation.eulerAngles;
-            float rx = e.x > 180f ? e.x - 360f : e.x;
-            float ry = e.y > 180f ? e.y - 360f : e.y;
-
-            _targetRotX = _currentRotX = Mathf.Clamp(rx, -85f, 85f);
-            _targetRotY = _currentRotY = ry;
+            _targetRot = _currentRot = modelRoot.rotation;
         }
+
+        /// <summary>The scale the model was fitted at when it opened (SpaceSceneManager.AutoFitModel).</summary>
+        public void SetFitScale(float scale) => _fitScale = scale;
+
+        /// <summary>
+        /// The turn a model opens at (the catalogue's openRotation: some files face away from the
+        /// camera). Set before <see cref="OnModelLoaded"/>; a later RestorePose (this person's last
+        /// view of the model, or the presenter's) still wins.
+        /// </summary>
+        public void SetOpenRotation(Quaternion rotation) => _openRot = rotation;
+        private Quaternion _openRot = Quaternion.identity;
+
+        private float ClampScale(float s) =>
+            _fitScale > 0f ? Mathf.Clamp(s, _fitScale * MinZoom, _fitScale * MaxZoom) : Mathf.Clamp(s, minScale, maxScale);
 
         public void OnModelLoaded(Transform root)
         {
             modelRoot = root;
-            _targetRotX  = 0f;
-            _targetRotY  = 0f;
-            _currentRotX = 0f;
-            _currentRotY = 0f;
+            _targetRot = _currentRot = _openRot;
+            if (root != null) root.rotation = _openRot;
 
             bool isAdmin = AuraSync.Networking.ZoneManager.Instance != null &&
                            AuraSync.Networking.ZoneManager.Instance.IsAdmin;
@@ -203,7 +218,8 @@ namespace AuraSync.Space
 
             // The rotation is yaw then pitch (no roll), with pitch limited like dragging is; a coarse
             // search and a fine one find the best pair without having to get the signs right by hand.
-            float bestX = _targetRotX, bestY = _targetRotY, bestDot = float.MinValue;
+            Vector3 start = _targetRot.eulerAngles;
+            float bestX = start.x > 180f ? start.x - 360f : start.x, bestY = start.y, bestDot = float.MinValue;
             void Try(float x, float y)
             {
                 float d = Vector3.Dot(Quaternion.Euler(x, y, 0f) * n, c);
@@ -215,8 +231,7 @@ namespace AuraSync.Space
             for (float x = cx - 5f; x <= cx + 5f; x += 1f)
                 for (float y = cy - 5f; y <= cy + 5f; y += 1f) Try(Mathf.Clamp(x, -85f, 85f), y);
 
-            _targetRotX = bestX;
-            _targetRotY = _currentRotY + Mathf.DeltaAngle(_currentRotY, bestY); // the short way round
+            _targetRot = Quaternion.Euler(bestX, bestY, 0f); // the Slerp in ApplySmoothedRotation goes the short way round
         }
 
         public void BreakSync()
@@ -306,6 +321,7 @@ namespace AuraSync.Space
 
             int touchCount = InputCompat.TouchCount;
             UpdateTapDetection(touchCount);
+            if (touchCount < 2) _twoFingerTracking = false;
 
             if (touchCount > 0)
             {
@@ -394,14 +410,40 @@ namespace AuraSync.Space
             return true;
         }
 
+        /// <summary>
+        /// Turns the model about its centre (the anchor: SpaceSceneManager centres the content on it)
+        /// so the surface under the finger follows the finger: drag right and the front turns right,
+        /// drag up and it turns up, drag on a slant and it turns on that slant. Both directions use
+        /// the same scale (degrees per screen width), so a diagonal drag turns diagonally.
+        /// </summary>
         private void RotateBy(Vector2 delta)
         {
-            float dx = delta.x / Screen.width;
-            float dy = delta.y / Screen.height;
+            float degreesPerPixel = rotationSpeed * 1800f / Mathf.Max(1, Screen.width);
+            Vector2 d = delta * degreesPerPixel;
+            float angle = d.magnitude;
+            if (angle < 1e-4f) return;
 
-            _targetRotY -= dx * rotationSpeed * 1800f;
-            _targetRotX -= dy * rotationSpeed * 1800f;
-            _targetRotX = Mathf.Clamp(_targetRotX, -85f, 85f);
+            Camera cam = Camera.main;
+            Vector3 up    = cam != null ? cam.transform.up    : Vector3.up;
+            Vector3 right = cam != null ? cam.transform.right : Vector3.right;
+            Vector3 axis  = (up * -d.x + right * d.y).normalized;
+            _targetRot = Quaternion.AngleAxis(angle, axis) * _targetRot;
+        }
+
+        /// <summary>Moves the model so the point under the fingers stays under them.</summary>
+        private void PanBy(Vector2 from, Vector2 to)
+        {
+            Camera cam = Camera.main;
+            if (cam == null)
+            {
+                modelRoot.position += new Vector3((to.x - from.x) / Screen.width, (to.y - from.y) / Screen.height, 0f) * panSpeed * 300f;
+                return;
+            }
+            float depth = Vector3.Dot(modelRoot.position - cam.transform.position, cam.transform.forward);
+            if (depth < 0.05f) depth = 0.05f;
+            Vector3 a = cam.ScreenToWorldPoint(new Vector3(from.x, from.y, depth));
+            Vector3 b = cam.ScreenToWorldPoint(new Vector3(to.x, to.y, depth));
+            modelRoot.position += b - a;
         }
 
         private void HandleSingleTouch()
@@ -431,10 +473,8 @@ namespace AuraSync.Space
 
         private void ApplySmoothedRotation()
         {
-            _currentRotX = Mathf.LerpAngle(_currentRotX, _targetRotX, Time.deltaTime * rotationSmoothing);
-            _currentRotY = Mathf.LerpAngle(_currentRotY, _targetRotY, Time.deltaTime * rotationSmoothing);
-
-            modelRoot.rotation = Quaternion.Euler(_currentRotX, _currentRotY, 0f);
+            _currentRot = Quaternion.Slerp(_currentRot, _targetRot, Time.deltaTime * rotationSmoothing);
+            modelRoot.rotation = _currentRot;
         }
 
         private void HandleMouseInput()
@@ -448,7 +488,7 @@ namespace AuraSync.Space
             {
                 if (IsSyncLocked) BreakSync();
                 float currentScale = modelRoot.localScale.x;
-                float newScale = Mathf.Clamp(currentScale + scroll * zoomSpeed * 50f, minScale, maxScale);
+                float newScale = ClampScale(currentScale * (1f + scroll * zoomSpeed * 10f));
                 modelRoot.localScale = Vector3.one * newScale;
             }
 
@@ -481,9 +521,7 @@ namespace AuraSync.Space
             }
             else
             {
-                float panXNormalized = delta.x / Screen.width;
-                float panYNormalized = delta.y / Screen.height;
-                modelRoot.position += new Vector3(panXNormalized * panSpeed * 300f, panYNormalized * panSpeed * 300f, 0f);
+                PanBy(mouse - delta, mouse);
             }
         }
 
@@ -494,8 +532,14 @@ namespace AuraSync.Space
             float   distance = Vector2.Distance(pos0, pos1);
             Vector2 midpoint = (pos0 + pos1) * 0.5f;
 
-            if (InputCompat.IsTouchBegan(0) || InputCompat.IsTouchBegan(1))
+            // A fresh two-finger gesture: either finger just landed, or two fingers are here for the
+            // first time. Both can land in the same frame, and then the one-finger code never ran, so
+            // the "started on a button?" answer would have been the previous gesture's - which made
+            // two-finger moves fail at random until tried again.
+            if (!_twoFingerTracking || InputCompat.IsTouchBegan(0) || InputCompat.IsTouchBegan(1))
             {
+                _twoFingerTracking     = true;
+                _gestureOnUI           = IsPointerOverUI(pos0) || IsPointerOverUI(pos1);
                 _lastPinchDistance     = distance;
                 _lastTwoFingerMidpoint = midpoint;
                 _pinchStartDistance    = distance;
@@ -519,20 +563,15 @@ namespace AuraSync.Space
                 return;
             }
 
-            float pinchDelta   = distance - _lastPinchDistance;
+            // Zoom by the ratio of finger spread: the model grows exactly as the fingers part,
+            // whatever size it started at.
+            if (_lastPinchDistance > 1f && distance > 1f)
+                modelRoot.localScale = Vector3.one * ClampScale(modelRoot.localScale.x * (distance / _lastPinchDistance));
             _lastPinchDistance = distance;
 
-            float currentScale   = modelRoot.localScale.x;
-            float pinchDeltaNorm = pinchDelta / Screen.width;
-            float newScale       = Mathf.Clamp(currentScale + pinchDeltaNorm * zoomSpeed * 200f, minScale, maxScale);
-            modelRoot.localScale = Vector3.one * newScale;
-
-            Vector2 panDelta       = midpoint - _lastTwoFingerMidpoint;
+            // Move so the point between the fingers stays between them.
+            PanBy(_lastTwoFingerMidpoint, midpoint);
             _lastTwoFingerMidpoint = midpoint;
-
-            float panXNorm = panDelta.x / Screen.width;
-            float panYNorm = panDelta.y / Screen.height;
-            modelRoot.position += new Vector3(panXNorm * panSpeed * 300f, panYNorm * panSpeed * 300f, 0f);
         }
 
         // ── Tap detection & pointer position ───────────────────────────────────

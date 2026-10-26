@@ -64,6 +64,10 @@ namespace AuraSync.Space
             if (modelNameLabel) modelNameLabel.text = displayName;
             if (loadingOverlay) loadingOverlay.SetActive(true);
 
+            // The studio backdrop, grid floor and adaptive lighting; the HUD shows the model's name.
+            StudioEnvironment.EnsureExists();
+            if (modelNameLabel) modelNameLabel.gameObject.SetActive(false);
+
             // Who drives explode / isolate / highlight for the room (normally made in V1 already;
             // here too for when SpaceScene is opened directly in the Editor).
             ControlOwnership.EnsureExists();
@@ -341,21 +345,41 @@ namespace AuraSync.Space
         private void UpdateLoadingText(string status, string path, string error = "")
         {
             if (loadingLabel == null) return;
+            StyleLoadingOverlay();
 
-            string displayPath = FormatPathForDisplay(path);
+            // Palette: Text #ECEBFA, TextDim #A9A8CC, Lavender #9894C4, Rose #D46A82.
+            // The file's location is not shown on screen; it stays in the log.
             if (string.IsNullOrEmpty(error))
             {
-                loadingLabel.text = $"<b>LOADING MODEL</b>\n" +
-                                   $"<size=20><color=#AAAAAA>{displayPath}</color></size>\n\n" +
-                                   $"<size=26><color=#6290FF>{status}</color></size>";
+                loadingLabel.text = $"<b>Loading model</b>\n\n" +
+                                   $"<size=26><color=#9894C4>{status}</color></size>";
             }
             else
             {
-                loadingLabel.text = $"<b><color=#FF5555>LOADING ERROR</color></b>\n" +
-                                   $"<size=20><color=#AAAAAA>{displayPath}</color></size>\n\n" +
-                                   $"<size=24><color=#FF8888>Failed at: {status}</color></size>\n" +
-                                   $"<size=20><color=#FF3333>Error: {error}</color></size>";
+                Debug.LogWarning($"[SpaceSceneManager] Load failed for {FormatPathForDisplay(path)} at '{status}': {error}");
+                loadingLabel.text = $"<b><color=#D46A82>Could not load the model</color></b>\n\n" +
+                                   $"<size=24><color=#ECEBFA>Failed at: {status}</color></size>\n" +
+                                   $"<size=20><color=#D46A82>Error: {error}</color></size>";
             }
+        }
+
+        private bool _loadingStyled;
+
+        /// <summary>The scene's loading overlay, in the app's font and colours (done once, in code).</summary>
+        private void StyleLoadingOverlay()
+        {
+            if (_loadingStyled) return;
+            _loadingStyled = true;
+            if (AuraTheme.SemiBold != null) loadingLabel.font = AuraTheme.SemiBold;
+            loadingLabel.color = AuraTheme.Text;
+            loadingLabel.enableWordWrapping = true;
+            // The scene's label is only 200 wide, so short lines wrapped into a column: use most of the width.
+            var lrt = loadingLabel.rectTransform;
+            lrt.anchorMin = new Vector2(0.08f, 0.5f);
+            lrt.anchorMax = new Vector2(0.92f, 0.5f);
+            lrt.sizeDelta = new Vector2(0f, Mathf.Max(lrt.sizeDelta.y, 400f));
+            if (loadingOverlay != null && loadingOverlay.TryGetComponent(out Image bg))
+                bg.color = AuraTheme.A(AuraTheme.Ink, 0.94f);
         }
 
         /// <summary>
@@ -388,6 +412,9 @@ namespace AuraSync.Space
                 return false;
             }
         }
+
+        /// <summary>Where a downloaded copy of this model URL lives on the phone (it may not exist yet).</summary>
+        public static string CachePathFor(string url) => string.IsNullOrEmpty(url) ? "" : GetCacheFilePath(url);
 
         private static string GetCacheFilePath(string url)
         {
@@ -642,11 +669,14 @@ namespace AuraSync.Space
                 ShowMaterialProblem();
 
                 UpdateLoadingText("Optimizing mesh simplicity...", uri);
-                await SimplifyModelAsync(modelAnchor);
+                await SimplifyModelAsync(modelAnchor, fullUrl);
                 if (this == null) return;
                 
                 UpdateLoadingText("Fitting model to camera view...", uri);
                 AutoFitModel(modelAnchor);
+                ModelData fitEntry = await FindCatalogEntry(fullUrl);
+                if (this == null) return;
+                SpaceInteractionController.Instance?.SetOpenRotation(OpenRotationOf(fitEntry));
                 AfterModelPlaced(swap: false);
 
                 // Phase 13: the paper's timing, then the full file if this was the preview.
@@ -716,6 +746,9 @@ namespace AuraSync.Space
             // Back to how this model was last left (explosion, isolation, selection, pose).
             // After every tool above has reset itself; a following viewer skips this.
             if (!swap) ModelStateMemory.RestoreAfterLoad(_currentModelKey);
+
+            // Light the studio for this model (again after a preview is swapped for the full file).
+            StudioEnvironment.Instance?.OnModelLoaded(interactionCtrl != null && interactionCtrl.ModelRoot != null ? interactionCtrl.ModelRoot : modelAnchor);
 
             // Extract display name from path for UI label
             // From the model's key, not the file loaded: a preview is still this model.
@@ -866,12 +899,17 @@ namespace AuraSync.Space
                 Transform c = modelAnchor.GetChild(i);
                 if (c != holder) DestroyImmediate(c.gameObject);
             }
-            while (holder.childCount > 0) holder.GetChild(0).SetParent(modelAnchor, false);
+            while (holder.childCount > 0)
+            {
+                Transform c = holder.GetChild(0);
+                c.SetParent(modelAnchor, false);
+                c.localPosition += _contentOffset; // centred the same way the preview was
+            }
             DestroyImmediate(holder.gameObject);
 
             ModelRaycaster.ClearCache();
             materialHelper?.FixAllMaterials(modelAnchor);
-            await SimplifyModelAsync(modelAnchor);
+            await SimplifyModelAsync(modelAnchor, url);
             if (this == null || generation != _loadGeneration) return;
 
             int partsAfter = modelAnchor.GetComponentsInChildren<Renderer>(true).Length;
@@ -949,8 +987,12 @@ namespace AuraSync.Space
         /// the app (Android ANR), and simplifies each distinct mesh only once even when several
         /// parts share it.
         /// </summary>
-        private async System.Threading.Tasks.Task SimplifyModelAsync(Transform root)
+        private async System.Threading.Tasks.Task SimplifyModelAsync(Transform root, string modelUrl)
         {
+            ModelData entry = await FindCatalogEntry(modelUrl);
+            if (this == null) return;
+            if (entry != null && entry.skipRuntimeSimplify) return;
+
             var simplified = new System.Collections.Generic.Dictionary<Mesh, Mesh>();
 
             foreach (var filter in root.GetComponentsInChildren<MeshFilter>())
@@ -1030,22 +1072,45 @@ namespace AuraSync.Space
             Bounds bounds = renderers[0].bounds;
             foreach (var r in renderers) bounds.Encapsulate(r.bounds);
 
+            // Centre the model's content on the anchor. Model files put their geometry anywhere
+            // relative to their own origin (the Common Press sits well off to one side), and the
+            // anchor is what turns, zooms and is placed: with the content off-centre the model
+            // opened out of view and swung round in an arc when turned. With the anchor at the
+            // origin and unrotated, world space is the anchor's local space here.
+            _contentOffset = -bounds.center;
+            foreach (Transform child in anchor) child.localPosition += _contentOffset;
+
             float maxDim = Mathf.Max(bounds.size.x, Mathf.Max(bounds.size.y, bounds.size.z));
-            float targetSize = 2.0f; 
+            float targetSize = 2.0f;
             float scaleFactor = targetSize / (maxDim > 0 ? maxDim : 1f);
 
             anchor.localScale = Vector3.one * scaleFactor;
-            
-            // Now position the model so its bottom aligns with y = 0
-            float bottomOffset = bounds.min.y; // since anchor.position.y is 0
-            anchor.position = new Vector3(0, -bottomOffset * scaleFactor, 0);
+
+            // Middle of the model on the vertical axis through the origin, its bottom on the floor.
+            anchor.position = new Vector3(0, bounds.size.y * 0.5f * scaleFactor, 0);
+
+            SpaceInteractionController.Instance?.SetFitScale(scaleFactor);
 
             if (Camera.main != null)
             {
                 Camera.main.transform.position = new Vector3(0, 1.5f, -6f);
-                Camera.main.transform.LookAt(new Vector3(0, 1.0f, 0));
+                Camera.main.transform.LookAt(anchor.position);
             }
         }
+
+        /// <summary>The catalogue's opening turn for a model (identity when it has none).</summary>
+        private static Quaternion OpenRotationOf(ModelData entry)
+        {
+            float[] r = entry != null ? entry.openRotation : null;
+            return r != null && r.Length == 3 ? Quaternion.Euler(r[0], r[1], r[2]) : Quaternion.identity;
+        }
+
+        /// <summary>
+        /// How far <see cref="AutoFitModel"/> moved the model's content to centre it, in the anchor's
+        /// space. The full model that replaces a preview gets the same shift, so it lands exactly
+        /// where the preview was.
+        /// </summary>
+        private Vector3 _contentOffset;
 
     }
 }
