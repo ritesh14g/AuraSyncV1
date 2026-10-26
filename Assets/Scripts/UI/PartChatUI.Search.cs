@@ -15,57 +15,47 @@ namespace AuraSync.UI
     ///
     ///   * As you type, the list fills from the phone alone (PartSearch.Local): instant, offline,
     ///     tolerant of typos and plurals.
-    ///   * Press GO (or Enter): if the phone is not sure, the AI matches by meaning
+    ///   * Search (or Enter): if the phone is not sure, the AI matches by meaning
     ///     ("the part that burns fuel").
-    ///   * MIC: say it instead. The recording becomes text (Groq Whisper, through the AI server),
-    ///     is put in the box, and searched as if typed and sent.
-    ///   * Tap a result to select it (highlighted, with the panel's line pointing at it); ASK opens
-    ///     the chat about it; ISOLATE shows it on its own.
+    ///   * Mic: say it instead. The recording becomes text (Groq Whisper, through the AI server),
+    ///     is put in the box, and searched as if typed.
+    ///   * Tap a result to select it; Ask opens the chat about it; Isolate shows it on its own.
     ///
-    /// In a room, picking a result goes through the normal selection rules: the presenter's pick is
-    /// shared (gold), anyone else's stays on their own phone (cyan).
+    /// In a room, picking a result goes through the normal selection rules.
     /// </summary>
     public partial class PartChatUI
     {
         private const int MaxQueryChars = 120;
-        private static readonly Color ListeningColor = new Color(0.75f, 0.22f, 0.25f, 1f);
-        private static readonly Color MeaningTag = new Color(0.62f, 0.56f, 1f, 1f);
+        private static readonly Color ListeningColor = AuraTheme.Rose;
 
-        private TMP_InputField  _findInput;
-        private Button          _micButton;
-        private Image           _micImage;
-        private TextMeshProUGUI _micLabel;
-        private Button          _goButton;
+        private TMP_InputField _findInput;
+        private Button _micButton;
+        private Image _micImage, _micIcon;
+        private Button _goButton;
         private TextMeshProUGUI _findStatus;
-        private ScrollRect      _findScroll;
-        private RectTransform   _findList;
+        private ScrollRect _findScroll;
+        private RectTransform _findList;
 
-        private string _findPath = "";           // the part Find last picked (the panel's line points at it)
+        private string _findPath = "";
         private List<SearchHit> _hits = new List<SearchHit>();
         private string _searchId = "";
-        private float  _searchStartedAt;
+        private float _searchStartedAt;
         private string _searchMethod = "text";
-        private long   _speechMs;
-        private bool   _picked;
+        private long _speechMs;
+        private bool _picked;
         private AiClient.Pending _pendingFind;
         private AiClient.Pending _pendingSpeech;
         private Coroutine _listening;
 
-        // ── Opening ────────────────────────────────────────────────────────────
+        // ── Opening ────────────────────────────────────────────────────
 
         /// <summary>Opens the panel on the FIND tab.</summary>
         public void OpenFind()
         {
             if (string.IsNullOrEmpty(SpaceSceneManager.CurrentModelKey)) return;
-
-            if (!IsOpen)
-            {
-                _panel.SetActive(true);
-                PanelNavigator.Push(NavId, this, Close);
-            }
+            ShowPanel();
             SetTab(Tab.Find);
             RefreshFindAvailability();
-            if (_findInput.interactable) _findInput.ActivateInputField();
         }
 
         private bool CanSearch => _knowledge != null && _knowledge.HasParts;
@@ -79,7 +69,7 @@ namespace AuraSync.UI
             if (!can)
             {
                 ClearResults();
-                SetFindStatus("This model has no part names to search. Use ASK to ask about the whole model.");
+                SetFindStatus("This model has no part names to search. Use Ask to ask about the whole model.");
             }
             else if (_hits.Count == 0 && string.IsNullOrWhiteSpace(_findInput.text))
             {
@@ -87,7 +77,7 @@ namespace AuraSync.UI
             }
         }
 
-        // ── Searching ──────────────────────────────────────────────────────────
+        // ── Searching ──────────────────────────────────────────────────
 
         private void OnFindTyped(string text)
         {
@@ -105,7 +95,7 @@ namespace AuraSync.UI
             _hits = PartSearch.Local(text);
             RenderResults();
             SetFindStatus(_hits.Count == 0
-                ? "No name matches yet. Press GO to search by meaning."
+                ? "No name matches yet. Tap search to look by meaning."
                 : $"{_hits.Count} match{(_hits.Count == 1 ? "" : "es")}. Tap one to select it.");
         }
 
@@ -114,8 +104,8 @@ namespace AuraSync.UI
         private void OnGoPressed() => Submit(_findInput.text, "text");
 
         /// <summary>
-        /// A finished query (GO, Enter, or what was heard). The phone's matches are used if it is sure;
-        /// otherwise the AI matches by meaning. A single clear winner is selected straight away.
+        /// A finished query (search, Enter, or what was heard). The phone's matches are used if it is
+        /// sure; otherwise the AI matches by meaning. A single clear winner is selected straight away.
         /// </summary>
         private void Submit(string text, string method)
         {
@@ -134,14 +124,8 @@ namespace AuraSync.UI
             {
                 SearchLog.Search(_searchId, method, text, _hits.Count, true, false, 0, _speechMs);
                 RenderResults();
-                if (clearWinner)
-                {
-                    Pick(_hits[0], 1);
-                }
-                else
-                {
-                    SetFindStatus($"{_hits.Count} matches. Tap the one you mean.");
-                }
+                if (clearWinner) Pick(_hits[0], 1);
+                else SetFindStatus($"{_hits.Count} matches. Tap the one you mean.");
                 return;
             }
 
@@ -153,21 +137,19 @@ namespace AuraSync.UI
             CancelAiFind();
             int localHits = _hits.Count;
             RenderResults();
-            SetFindStatus("Not sure from the names; searching by meaning...");
+            SetFindStatus("Not sure from the names; searching by meaning…");
 
             string id = _searchId;
             _pendingFind = AiClient.Ensure().Find(text, PartSearch.ForAi(), r =>
             {
                 _pendingFind = null;
-                if (this == null || id != _searchId) return; // a newer search has started
+                if (this == null || id != _searchId) return;
 
                 SearchLog.Search(id, method, text, localHits, false, true, r.latencyMs, _speechMs);
 
                 if (!r.ok)
                 {
-                    SetFindStatus(_hits.Count > 0
-                        ? $"Searching by meaning failed ({r.error}) Showing name matches."
-                        : r.error);
+                    SetFindStatus(_hits.Count > 0 ? $"Searching by meaning failed ({r.error}) Showing name matches." : r.error);
                     return;
                 }
 
@@ -184,13 +166,12 @@ namespace AuraSync.UI
                     });
                 }
 
-                // The AI's matches first, then any name matches it did not already give.
                 var seen = new HashSet<string>(aiHits.Select(h => h.path));
                 _hits = aiHits.Concat(_hits.Where(h => !seen.Contains(h.path))).Take(5).ToList();
                 RenderResults();
 
                 if (aiHits.Count == 1) Pick(aiHits[0], 1);
-                else if (_hits.Count == 0) SetFindStatus("No part matches that. Try other words, or ASK about the whole model.");
+                else if (_hits.Count == 0) SetFindStatus("No part matches that. Try other words, or Ask about the whole model.");
                 else SetFindStatus($"{_hits.Count} match{(_hits.Count == 1 ? "" : "es")}. Tap the one you mean.");
             });
         }
@@ -203,7 +184,6 @@ namespace AuraSync.UI
 
         private void StartSearchIfNew(string method)
         {
-            // One "search" lasts from the first keystroke (or the mic) until a part is picked.
             if (!string.IsNullOrEmpty(_searchId) && !_picked) return;
             _searchId = Guid.NewGuid().ToString("N").Substring(0, 12);
             _searchStartedAt = Time.realtimeSinceStartup;
@@ -212,15 +192,12 @@ namespace AuraSync.UI
             _picked = false;
         }
 
-        // ── Picking a result ───────────────────────────────────────────────────
+        // ── Picking a result ───────────────────────────────────────────
 
         private void Pick(SearchHit hit, int rank)
         {
             _findPath = hit.path;
-            _placement = -1;
 
-            // Selection obeys the room's rules (presenter shares, others keep it local). Picking what
-            // is already selected must not toggle it off, so only select when it is not.
             if (_selector != null)
             {
                 string current = _selector.OwnPath;
@@ -233,24 +210,24 @@ namespace AuraSync.UI
                 SearchLog.Pick(_searchId, rank, hit.byMeaning, Time.realtimeSinceStartup - _searchStartedAt);
             }
 
-            SetFindStatus($"Selected: {hit.label}. ASK to talk about it, or ISOLATE to see it alone.");
+            SetFindStatus($"Selected: {hit.label}. Ask to talk about it, or Isolate to see it alone.");
             RenderResults();
         }
 
-        // ── Voice ──────────────────────────────────────────────────────────────
+        // ── Voice ──────────────────────────────────────────────────────
 
         private void OnMicPressed()
         {
             SpeechInput speech = SpeechInput.Ensure();
             if (speech.IsRecording)
             {
-                speech.StopRecording(); // the callback carries on from here
+                speech.StopRecording();
                 return;
             }
 
             CancelAiFind();
             _pendingSpeech?.Cancel();
-            _picked = true;               // a voice query is a new search
+            _picked = true;
             StartSearchIfNew("voice");
             _findInput.DeactivateInputField();
 
@@ -260,13 +237,12 @@ namespace AuraSync.UI
 
         private IEnumerator ShowListening(SpeechInput speech)
         {
-            _micLabel.text = "STOP";
-            _micImage.color = ListeningColor;
+            SetMicLook(_micImage, _micIcon, true);
             while (speech != null && speech.IsRecording)
             {
                 int bars = Mathf.Clamp(Mathf.RoundToInt(speech.Level * 60f), 0, 10);
-                SetFindStatus($"Listening... {Mathf.Max(0f, SpeechInput.MaxSeconds - speech.Elapsed):0}s  " +
-                              new string('|', bars) + "\nSay a part's name or what it does. Tap STOP when done.");
+                SetFindStatus($"Listening… {Mathf.Max(0f, SpeechInput.MaxSeconds - speech.Elapsed):0}s  " +
+                              new string('|', bars) + "\nSay a part's name or what it does. Tap the mic again when done.");
                 yield return null;
             }
             ResetMicButton();
@@ -284,7 +260,7 @@ namespace AuraSync.UI
                 return;
             }
 
-            SetFindStatus("Working out what you said...");
+            SetFindStatus("Working out what you said…");
             string id = _searchId;
             _pendingSpeech = AiClient.Ensure().Transcribe(wav, PartSearch.Vocabulary(), r =>
             {
@@ -313,16 +289,23 @@ namespace AuraSync.UI
             _pendingSpeech?.Cancel();
             _pendingSpeech = null;
             CancelAiFind();
-            if (_micLabel != null) ResetMicButton();
+            if (_micImage != null) ResetMicButton();
         }
 
-        private void ResetMicButton()
+        private void ResetMicButton() => SetMicLook(_micImage, _micIcon, false);
+
+        /// <summary>A round mic button turns rose with a stop square while it is listening.</summary>
+        private static void SetMicLook(Image disc, Image icon, bool listening)
         {
-            _micLabel.text = "MIC";
-            _micImage.color = ButtonColor;
+            if (disc != null) disc.color = listening ? ListeningColor : AuraTheme.Indigo;
+            if (icon != null)
+            {
+                icon.sprite = AuraIcons.Get(listening ? AuraIcons.Stop : AuraIcons.Mic);
+                icon.color = listening ? AuraTheme.Ink : AuraTheme.Text;
+            }
         }
 
-        // ── Rendering ──────────────────────────────────────────────────────────
+        // ── Rendering ──────────────────────────────────────────────────
 
         private void ClearResults()
         {
@@ -338,7 +321,7 @@ namespace AuraSync.UI
         private void RenderResults()
         {
             if (_findList == null) return;
-            for (int i = _findList.childCount - 1; i >= 0; i--) Destroy(_findList.GetChild(i).gameObject);
+            AuraKit.ClearChildren(_findList);
 
             for (int i = 0; i < _hits.Count; i++)
             {
@@ -346,50 +329,32 @@ namespace AuraSync.UI
                 int rank = i + 1;
                 bool selected = hit.path == _findPath;
 
-                var row = new GameObject("Result", typeof(RectTransform));
-                row.transform.SetParent(_findList, false);
-                var bg = row.AddComponent<Image>();
-                bg.color = selected ? new Color(0.20f, 0.30f, 0.42f, 1f) : AiBubble;
-                var btn = row.AddComponent<Button>();
-                btn.targetGraphic = bg;
-                btn.onClick.AddListener(() => Pick(hit, rank));
-                AddLayout(row, height: 92f);
+                var row = AuraKit.Box(_findList, "Result", selected ? AuraTheme.A(AuraTheme.Lavender, 0.22f) : AuraTheme.A(AuraTheme.Indigo, 0.9f),
+                                      AuraTheme.Radius - 6f, true);
+                AuraKit.Border(row, selected ? AuraTheme.Lavender : AuraTheme.A(AuraTheme.Slate, 0.8f), AuraTheme.Radius - 6f);
+                AuraKit.Size(row, -1, 150f);
+                var hg = AuraKit.HStack(row, 12f);
+                hg.padding = new RectOffset(28, 18, 14, 14);
+                AuraKit.MakeButton(row.gameObject, row, () => Pick(hit, rank));
 
-                var hg = row.AddComponent<HorizontalLayoutGroup>();
-                hg.padding = new RectOffset(14, 10, 8, 8);
-                hg.spacing = 8;
-                hg.childAlignment = TextAnchor.MiddleLeft;
-                hg.childControlWidth = true; hg.childControlHeight = true;
-                hg.childForceExpandWidth = false; hg.childForceExpandHeight = false;
-
-                var texts = new GameObject("Texts", typeof(RectTransform));
-                texts.transform.SetParent(row.transform, false);
-                AddLayout(texts, flexWidth: 1f);
-                var tv = texts.AddComponent<VerticalLayoutGroup>();
-                tv.spacing = 2;
-                tv.childControlWidth = true; tv.childControlHeight = true;
-                tv.childForceExpandWidth = true; tv.childForceExpandHeight = false;
-
-                TextMeshProUGUI name = MakeText(texts.transform, "Name", Esc(hit.label), 22, Color.white);
-                name.fontStyle = FontStyles.Bold;
+                var texts = AuraKit.Rect(row.transform, "Texts");
+                AuraKit.VStack(texts, 4f, 0, TextAnchor.MiddleLeft);
+                AuraKit.Size(texts, 0f, -1, 1f);
+                var name = AuraKit.Text(texts, Esc(hit.label), AuraTheme.SizeBody - 2f, AuraTheme.Text, AuraWeight.SemiBold);
                 name.enableWordWrapping = false;
-                name.overflowMode = TextOverflowModes.Ellipsis;
-
-                string detail = hit.byMeaning
-                    ? $"<color=#{ColorUtility.ToHtmlStringRGB(MeaningTag)}>by meaning:</color> {Esc(hit.detail)}"
-                    : Esc(hit.detail);
-                TextMeshProUGUI sub = MakeText(texts.transform, "Detail", detail, 17, DimText);
+                string detail = hit.byMeaning ? $"<color=#9894C4>by meaning ·</color> {Esc(hit.detail)}" : Esc(hit.detail);
+                var sub = AuraKit.Text(texts, detail, AuraTheme.SizeCaption - 2f, AuraTheme.TextDim);
+                sub.richText = true;
                 sub.enableWordWrapping = false;
-                sub.overflowMode = TextOverflowModes.Ellipsis;
 
-                MakeButton(row.transform, "Ask", "ASK", ButtonColor, () => { Pick(hit, rank); Open(hit.path); }, height: 56f, fontSize: 17, minWidth: 74f);
-                MakeButton(row.transform, "Isolate", "ISOLATE", ButtonColor, () =>
+                AuraWidgets.Chip(row.transform, "Ask", AuraIcons.AI, true, () => { Pick(hit, rank); Open(hit.path); }, out _, 88f);
+                AuraWidgets.Chip(row.transform, "Isolate", AuraIcons.Target, false, () =>
                 {
                     Pick(hit, rank);
                     if (_isolator == null) return;
                     if (_isolator.IsolatedPath == hit.path) _isolator.ShowAll();
                     else _isolator.Isolate(hit.path);
-                }, height: 56f, fontSize: 16, minWidth: 104f);
+                }, out _, 88f);
             }
 
             StartCoroutine(ScrollFindToTop());
@@ -402,71 +367,36 @@ namespace AuraSync.UI
             if (_findScroll != null) _findScroll.verticalNormalizedPosition = 1f;
         }
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
-        private void BuildFindPage(Transform parent)
+        private void BuildFindPage(RectTransform parent)
         {
-            _findPage = new GameObject("FindPage", typeof(RectTransform));
-            _findPage.transform.SetParent(parent, false);
-            AddLayout(_findPage, height: 120f, flexHeight: 1f);
-            var vg = _findPage.AddComponent<VerticalLayoutGroup>();
-            vg.spacing = 8;
-            vg.childControlWidth = true; vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            var page = AuraKit.Rect(parent, "FindPage");
+            AuraKit.Size(page, -1, 200f, -1, 1f);
+            AuraKit.VStack(page, 14f).childForceExpandHeight = false;
+            _findPage = page.gameObject;
 
-            var row = new GameObject("SearchRow", typeof(RectTransform));
-            row.transform.SetParent(_findPage.transform, false);
-            AddLayout(row, height: 60f);
-            var hg = row.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing = 8;
-            hg.childControlWidth = true; hg.childControlHeight = true;
-            hg.childForceExpandWidth = false; hg.childForceExpandHeight = true;
-
-            _findInput = BuildInputField(row.transform, "Find a part: name, job, or where it is", MaxQueryChars, OnFindSubmitted);
+            var row = AuraKit.Rect(page, "SearchRow");
+            AuraKit.HStack(row, 12f).childForceExpandHeight = false;
+            AuraKit.Size(row, -1, 112f);
+            _findInput = AuraWidgets.Input(row, "Name, job or where it is", "", false, 112f, MaxQueryChars);
+            AuraKit.Flex(_findInput);
             _findInput.onValueChanged.AddListener(OnFindTyped);
+            _findInput.onSubmit.AddListener(OnFindSubmitted);
+            _micButton = AuraWidgets.Round(row, AuraIcons.Mic, 104f, false, OnMicPressed, out _micIcon);
+            _micImage = (Image)_micButton.targetGraphic;
+            _goButton = AuraWidgets.Round(row, AuraIcons.Search, 104f, true, OnGoPressed, out _);
 
-            _micButton = MakeButton(row.transform, "Mic", "MIC", ButtonColor, OnMicPressed, height: 60f, fontSize: 19, minWidth: 92f);
-            _micImage = _micButton.GetComponent<Image>();
-            _micLabel = _micButton.GetComponentInChildren<TextMeshProUGUI>();
-            _goButton = MakeButton(row.transform, "Go", "GO", AskButtonColor, OnGoPressed, height: 60f, fontSize: 19, minWidth: 80f);
-
-            _findStatus = MakeText(_findPage.transform, "Status", "", 18, DimText);
+            _findStatus = AuraKit.Text(page, "", AuraTheme.SizeSmall - 2f, AuraTheme.TextDim);
             _findStatus.enableWordWrapping = true;
 
-            var scrollGo = new GameObject("Results", typeof(RectTransform));
-            scrollGo.transform.SetParent(_findPage.transform, false);
-            AddLayout(scrollGo, height: 100f, flexHeight: 1f);
-            _findScroll = scrollGo.AddComponent<ScrollRect>();
-            _findScroll.horizontal = false;
-            _findScroll.vertical = true;
+            var results = AuraKit.Rect(page, "Results");
+            AuraKit.Size(results, -1, 200f, -1, 1f);
+            _findList = AuraWidgets.Scroll(results, out _findScroll, 12f);
             _findScroll.movementType = ScrollRect.MovementType.Clamped;
-            _findScroll.scrollSensitivity = 28f;
 
-            var viewport = new GameObject("Viewport", typeof(RectTransform));
-            viewport.transform.SetParent(scrollGo.transform, false);
-            var vrt = (RectTransform)viewport.transform;
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.sizeDelta = Vector2.zero; vrt.pivot = new Vector2(0f, 1f);
-            viewport.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.01f);
-            viewport.AddComponent<RectMask2D>();
-
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            _findList = (RectTransform)content.transform;
-            _findList.anchorMin = new Vector2(0f, 1f);
-            _findList.anchorMax = new Vector2(1f, 1f);
-            _findList.pivot = new Vector2(0f, 1f);
-            _findList.sizeDelta = Vector2.zero;
-            var cv = content.AddComponent<VerticalLayoutGroup>();
-            cv.spacing = 8;
-            cv.childControlWidth = true; cv.childControlHeight = true;
-            cv.childForceExpandWidth = true; cv.childForceExpandHeight = false;
-            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            _findScroll.viewport = vrt;
-            _findScroll.content = _findList;
-
-            TextMeshProUGUI note = MakeText(_findPage.transform, "Note",
-                "Voice is sent to Groq only to turn it into text. Searching by name works offline.", 15, DimText);
+            var note = AuraKit.Text(page, "Voice is sent to Groq only to turn it into text. Searching by name works offline.",
+                                    AuraTheme.SizeCaption - 5f, AuraTheme.A(AuraTheme.TextDim, 0.8f));
             note.enableWordWrapping = true;
         }
     }

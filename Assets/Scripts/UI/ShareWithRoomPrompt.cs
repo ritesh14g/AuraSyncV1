@@ -68,16 +68,10 @@ namespace AuraSync.UI
         private TextMeshProUGUI _title;
         private TextMeshProUGUI _body;
         private TextMeshProUGUI _countdown;
-        private RectTransform   _denyRt, _acceptRt, _keepRt;
+        private RectTransform   _keepRt;
         private TextMeshProUGUI _denyText, _acceptText, _keepText;
 
         private const string NavId = "share-prompt";
-
-        private static readonly Color Dim         = new Color(0f, 0f, 0f, 0.55f);
-        private static readonly Color CardColor   = new Color(0.09f, 0.11f, 0.16f, 0.98f);
-        private static readonly Color AcceptColor = new Color(0.16f, 0.62f, 0.36f, 1f);
-        private static readonly Color DenyColor   = new Color(0.42f, 0.44f, 0.52f, 1f);
-        private static readonly Color KeepColor   = new Color(0.13f, 0.42f, 0.78f, 1f);
 
         /// <summary>
         /// Shows (or queues) a question. <paramref name="id"/> identifies the feature: asking again
@@ -170,26 +164,20 @@ namespace AuraSync.UI
             _body.text  = o.body;
             _countdown.text = "";
 
-            _acceptText.text = string.IsNullOrEmpty(o.acceptLabel) ? "ACCEPT" : o.acceptLabel;
-            _denyText.text   = string.IsNullOrEmpty(o.denyLabel)   ? "DENY"   : o.denyLabel;
-            _keepText.text   = string.IsNullOrEmpty(o.keepLabel)   ? "KEEP SHARING" : o.keepLabel;
+            _acceptText.text = Sentence(string.IsNullOrEmpty(o.acceptLabel) ? "Accept" : o.acceptLabel);
+            _denyText.text   = Sentence(string.IsNullOrEmpty(o.denyLabel)   ? "Deny"   : o.denyLabel);
+            _keepText.text   = Sentence(string.IsNullOrEmpty(o.keepLabel)   ? "Keep sharing" : o.keepLabel);
 
-            // Two buttons side by side, or three when KEEP SHARING is on offer.
-            bool keep = o.onKeep != null;
-            _keepRt.gameObject.SetActive(keep);
-            if (keep)
-            {
-                SetSpan(_denyRt,   0.04f, 0.33f);
-                SetSpan(_acceptRt, 0.355f, 0.645f);
-                SetSpan(_keepRt,   0.67f, 0.96f);
-            }
-            else
-            {
-                SetSpan(_denyRt,   0.05f, 0.48f);
-                SetSpan(_acceptRt, 0.52f, 0.95f);
-            }
+            // Two buttons side by side, or three when Keep sharing is on offer.
+            _keepRt.gameObject.SetActive(o.onKeep != null);
 
-            _root.SetActive(true);
+            if (!_root.activeSelf)
+            {
+                _root.SetActive(true);
+                var g = _root.GetComponent<CanvasGroup>();
+                g.alpha = 0f;
+                AuraMotion.Fade(g, 1f, 0.18f);
+            }
             PanelNavigator.Push(NavId, this, () => Answer(Choice.Deny));
         }
 
@@ -225,112 +213,66 @@ namespace AuraSync.UI
             catch (Exception e) { Debug.LogException(e); }
         }
 
+        /// <summary>"KEEP SHARING" → "Keep sharing": buttons read in sentence case.</summary>
+        private static string Sentence(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s != s.ToUpperInvariant()) return s;
+            return char.ToUpperInvariant(s[0]) + s.Substring(1).ToLowerInvariant();
+        }
+
         // ── Building ───────────────────────────────────────────────────────────
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 105; // above every panel, including the room modal (100/101)
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            var canvas = AuraKit.CreateCanvas(transform, "SharePrompt", 105); // above every panel
+            _root = canvas.gameObject;
+            _root.AddComponent<CanvasGroup>();
 
             // Full-screen dimmer: blocks touches to the model while the question is open.
-            _root = new GameObject("Dimmer", typeof(RectTransform));
-            _root.transform.SetParent(transform, false);
-            Stretch((RectTransform)_root.transform);
-            _root.AddComponent<Image>().color = Dim;
-            _root.AddComponent<TouchBlocker>(); // a tap anywhere on the dimmed screen is not a tap on the model
+            var dim = AuraKit.Box(canvas.transform, "Dim", AuraTheme.A(AuraTheme.Ink, 0.65f), 0f, true);
+            AuraKit.Fill(dim.rectTransform);
+            dim.gameObject.AddComponent<TouchBlocker>();
 
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(_root.transform, false);
-            var crt = (RectTransform)card.transform;
-            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.5f);
-            crt.sizeDelta = new Vector2(900f, 560f);
-            card.AddComponent<Image>().color = CardColor;
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
 
-            _title = MakeText(card.transform, "Title", 44f, FontStyles.Bold);
-            _title.enableAutoSizing = true; // "Asha asks to drive Isolate" with a long name
-            _title.fontSizeMin = 30f;
-            _title.fontSizeMax = 44f;
-            Place(_title.rectTransform, 0.75f, 0.95f);
+            var card = AuraKit.Box(safe, "Card", AuraTheme.A(AuraTheme.Indigo, 0.98f), AuraTheme.Radius + 8f, true);
+            AuraKit.Border(card, AuraTheme.Lavender, AuraTheme.Radius + 8f);
+            var crt = card.rectTransform;
+            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.55f);
+            crt.pivot = new Vector2(0.5f, 0.5f);
+            card.gameObject.AddComponent<MatchParentWidth>().max = 920f;
+            var v = AuraKit.VStack(card, 18f);
+            v.padding = new RectOffset(44, 44, 44, 40);
+            AuraKit.FitHeight(card);
 
-            _body = MakeText(card.transform, "Body", 32f, FontStyles.Normal);
-            _body.color = new Color(0.85f, 0.88f, 0.94f, 1f);
-            _body.enableAutoSizing = true; // three lines when KEEP SHARING is explained
-            _body.fontSizeMin = 22f;
-            _body.fontSizeMax = 32f;
-            Place(_body.rectTransform, 0.38f, 0.75f);
+            var icon = AuraKit.Icon(card.transform, AuraIcons.Room, 72f, AuraTheme.Lavender);
+            _title = AuraKit.Text(card.transform, "", AuraTheme.SizeTitle - 4f, AuraTheme.Text, AuraWeight.Bold);
+            _title.enableWordWrapping = true;
+            _body = AuraKit.Text(card.transform, "", AuraTheme.SizeSmall + 2f, AuraTheme.TextDim);
+            _body.enableWordWrapping = true;
+            _body.richText = true;
+            _countdown = AuraKit.Text(card.transform, "", AuraTheme.SizeCaption - 2f, AuraTheme.A(AuraTheme.TextDim, 0.8f));
+            _countdown.fontStyle = FontStyles.Italic;
 
-            _countdown = MakeText(card.transform, "Countdown", 24f, FontStyles.Italic);
-            _countdown.color = new Color(1f, 1f, 1f, 0.55f);
-            Place(_countdown.rectTransform, 0.30f, 0.38f);
-
-            _denyRt   = MakeButton(card.transform, "Deny",   DenyColor,   () => Answer(Choice.Deny),   out _denyText);
-            _acceptRt = MakeButton(card.transform, "Accept", AcceptColor, () => Answer(Choice.Accept), out _acceptText);
-            _keepRt   = MakeButton(card.transform, "Keep",   KeepColor,   () => Answer(Choice.Keep),   out _keepText);
-        }
-
-        private static TextMeshProUGUI MakeText(Transform parent, string name, float size, FontStyles style)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.fontSize  = size;
-            t.fontStyle = style;
-            t.color     = Color.white;
-            t.alignment = TextAlignmentOptions.Center;
-            t.enableWordWrapping = true;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static RectTransform MakeButton(Transform parent, string name, Color color,
-                                                UnityEngine.Events.UnityAction onClick, out TextMeshProUGUI label)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var rt = (RectTransform)go.transform;
-
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(onClick);
-
-            label = MakeText(go.transform, "Label", 34f, FontStyles.Bold);
-            label.enableAutoSizing = true; // KEEP SHARING is long for a third of the card
-            label.fontSizeMin = 20f;
-            label.fontSizeMax = 34f;
-            label.enableWordWrapping = false;
-            Stretch(label.rectTransform);
-            label.rectTransform.offsetMin = new Vector2(10f, 0f);
-            label.rectTransform.offsetMax = new Vector2(-10f, 0f);
-            return rt;
-        }
-
-        private static void SetSpan(RectTransform rt, float xMin, float xMax)
-        {
-            rt.anchorMin = new Vector2(xMin, 0.07f);
-            rt.anchorMax = new Vector2(xMax, 0.28f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-        }
-
-        private static void Place(RectTransform rt, float yMin, float yMax)
-        {
-            rt.anchorMin = new Vector2(0.06f, yMin);
-            rt.anchorMax = new Vector2(0.94f, yMax);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-        }
-
-        private static void Stretch(RectTransform rt)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var row = AuraKit.EqualRow(card.transform, AuraTheme.MinTouch, 16f);
+            var deny = AuraKit.Pill(row, "Deny", null, AuraTheme.Ink, AuraTheme.Text, () => Answer(Choice.Deny), AuraTheme.MinTouch, AuraTheme.Slate);
+            AuraKit.Cell(deny);
+            _denyText = deny.GetComponentInChildren<TextMeshProUGUI>();
+            var accept = AuraKit.Pill(row, "Accept", null, AuraTheme.Lavender, AuraTheme.Ink, () => Answer(Choice.Accept), AuraTheme.MinTouch);
+            AuraKit.Cell(accept);
+            _acceptText = accept.GetComponentInChildren<TextMeshProUGUI>();
+            var keep = AuraKit.Pill(row, "Keep sharing", null, AuraTheme.A(AuraTheme.Lavender, 0.18f), AuraTheme.Lavender,
+                                    () => Answer(Choice.Keep), AuraTheme.MinTouch, AuraTheme.Lavender);
+            AuraKit.Cell(keep);
+            _keepRt = (RectTransform)keep.transform;
+            _keepText = keep.GetComponentInChildren<TextMeshProUGUI>();
+            foreach (var t in new[] { _denyText, _acceptText, _keepText })
+            {
+                t.enableAutoSizing = true;
+                t.fontSizeMin = 20f;
+                t.fontSizeMax = AuraTheme.SizeBody;
+            }
         }
     }
 }

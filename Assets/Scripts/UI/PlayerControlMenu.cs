@@ -25,17 +25,12 @@ namespace AuraSync.UI
 
         private static PlayerControlMenu _instance;
 
-        private static readonly Color CardColor   = new Color(0.09f, 0.11f, 0.16f, 0.98f);
-        private static readonly Color OnColor     = new Color(0.16f, 0.55f, 0.34f, 1f);
-        private static readonly Color OffColor    = new Color(0.22f, 0.24f, 0.31f, 1f);
-        private static readonly Color PromoteColor = new Color(0.62f, 0.45f, 0.08f, 1f);
-        private static readonly Color ArmedColor  = new Color(0.85f, 0.65f, 0.10f, 1f);
-        private static readonly Color CloseColor  = new Color(0.36f, 0.38f, 0.46f, 1f);
-
         private GameObject      _root;
         private TextMeshProUGUI _title;
-        private readonly Dictionary<Control, (Image bg, TextMeshProUGUI text)> _rows =
-            new Dictionary<Control, (Image, TextMeshProUGUI)>();
+        private Image           _titleDot;
+
+        private class Row { public Image fill, border, check; public TextMeshProUGUI text; }
+        private readonly Dictionary<Control, Row> _rows = new Dictionary<Control, Row>();
         private Image           _promoteBg;
         private TextMeshProUGUI _promoteText;
 
@@ -111,24 +106,29 @@ namespace AuraSync.UI
 
             string name = NetworkManager.DisplayName(p);
             _title.text = name;
+            _titleDot.color = UserPresence.ColorForActor(_actor);
 
             foreach (Control c in ControlOwnership.Active)
             {
-                if (!_rows.TryGetValue(c, out var row)) continue;
+                if (!_rows.TryGetValue(c, out Row row)) continue;
                 int holder = ControlOwnership.HolderOf(c);
                 bool given = holder == _actor;
 
                 string note = "";
                 if (!given && ControlOwnership.IsHandedOut(c))
-                    note = $"  <size=75%><color=#FFD133>({ControlOwnership.HolderName(c)} has it)</color></size>";
+                    note = $"  <size=80%><color=#A9A8CC>({ControlOwnership.HolderName(c)} has it)</color></size>";
 
-                row.text.text = (given ? "[x]  " : "[  ]  ") + ControlOwnership.Label(c) + note;
-                row.bg.color  = given ? OnColor : OffColor;
+                row.text.text = ControlOwnership.Label(c) + note;
+                row.text.color = given ? AuraTheme.Text : AuraTheme.TextDim;
+                row.fill.color = given ? AuraTheme.A(AuraTheme.Lavender, 0.18f) : AuraTheme.Ink;
+                row.border.color = given ? AuraTheme.Lavender : AuraTheme.A(AuraTheme.Slate, 0.8f);
+                row.check.enabled = given;
             }
 
             bool armed = _promoteArmedUntil > Time.unscaledTime;
-            _promoteText.text = armed ? "TAP AGAIN: MAKE PRESENTER" : "MAKE PRESENTER";
-            _promoteBg.color  = armed ? ArmedColor : PromoteColor;
+            _promoteText.text = armed ? "Tap again to make presenter" : "Make presenter";
+            _promoteText.color = armed ? AuraTheme.Ink : AuraTheme.Lavender;
+            _promoteBg.color  = armed ? AuraTheme.Lavender : AuraTheme.Ink;
         }
 
         private void OnRowPressed(Control c)
@@ -165,125 +165,66 @@ namespace AuraSync.UI
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 103; // above the HUD, drawer and room panel; below the share prompt (105)
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            var canvas = AuraKit.CreateCanvas(transform, "PlayerMenu", 103); // above the HUD and room card; below the share prompt (105)
+            _root = canvas.gameObject;
 
             // Dimmer: a tap outside the card closes the menu, and never reaches the model.
-            _root = new GameObject("Dimmer", typeof(RectTransform));
-            _root.transform.SetParent(transform, false);
-            Stretch((RectTransform)_root.transform);
-            var dim = _root.AddComponent<Image>();
-            dim.color = new Color(0f, 0f, 0f, 0.45f);
-            _root.AddComponent<TouchBlocker>();
-            var dimBtn = _root.AddComponent<Button>();
-            dimBtn.transition = Selectable.Transition.None;
-            dimBtn.onClick.AddListener(Close);
+            var dim = AuraKit.Box(canvas.transform, "Dim", AuraTheme.A(AuraTheme.Ink, 0.6f), 0f, true);
+            AuraKit.Fill(dim.rectTransform);
+            AuraKit.MakeButton(dim.gameObject, dim, Close).transition = Selectable.Transition.None;
 
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(_root.transform, false);
-            var crt = (RectTransform)card.transform;
-            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.5f);
-            crt.sizeDelta = new Vector2(760f, 0f);
-            card.AddComponent<Image>().color = CardColor;
-            card.AddComponent<TouchBlocker>();
-            card.AddComponent<Button>().transition = Selectable.Transition.None; // swallow taps on the card
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
 
-            var vg = card.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(28, 28, 24, 24);
-            vg.spacing = 12;
-            vg.childControlWidth = true;
-            vg.childControlHeight = true;
-            vg.childForceExpandWidth = true;
-            vg.childForceExpandHeight = false;
-            var fit = card.AddComponent<ContentSizeFitter>();
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var card = AuraKit.Box(safe, "Card", AuraTheme.A(AuraTheme.Indigo, 0.98f), AuraTheme.Radius + 8f, true);
+            AuraKit.Border(card, AuraTheme.Slate, AuraTheme.Radius + 8f);
+            var crt = card.rectTransform;
+            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.55f);
+            crt.pivot = new Vector2(0.5f, 0.5f);
+            card.gameObject.AddComponent<MatchParentWidth>().max = 860f;
+            var v = AuraKit.VStack(card, 16f);
+            v.padding = new RectOffset(40, 40, 40, 40);
+            AuraKit.FitHeight(card);
 
-            _title = MakeText(card.transform, "Title", 40f, FontStyles.Bold, 60f);
+            var head = AuraKit.Rect(card.transform, "Head");
+            AuraKit.HStack(head, 18f);
+            AuraKit.Size(head, -1, 70f);
+            _titleDot = AuraKit.Rect(head, "Dot").gameObject.AddComponent<Image>();
+            _titleDot.sprite = AuraSprites.Disc;
+            AuraKit.Size(_titleDot, 36f, 36f);
+            _title = AuraKit.Text(head, "", AuraTheme.SizeTitle - 6f, AuraTheme.Text, AuraWeight.Bold);
+            _title.enableWordWrapping = false;
+            AuraKit.Flex(_title);
 
-            var hint = MakeText(card.transform, "Hint", 24f, FontStyles.Normal, 34f);
-            hint.text  = "Controls this player drives for everyone:";
-            hint.color = new Color(1f, 1f, 1f, 0.6f);
+            AuraKit.Text(card.transform, "Tap a control to hand it to them: they drive it for everyone. Tap again to take it back.",
+                         AuraTheme.SizeCaption, AuraTheme.TextDim);
 
             foreach (Control c in ControlOwnership.Active)
             {
                 Control captured = c;
-                var (bg, text) = MakeButton(card.transform, "Row_" + ControlOwnership.Id(c), OffColor,
-                                            () => OnRowPressed(captured), TextAlignmentOptions.MidlineLeft);
-                _rows[c] = (bg, text);
+                var fill = AuraKit.Box(card.transform, "Row_" + ControlOwnership.Id(c), AuraTheme.Ink, AuraTheme.Radius - 8f, true);
+                var border = AuraKit.Border(fill, AuraTheme.Slate, AuraTheme.Radius - 8f);
+                AuraKit.Size(fill, -1, 110f);
+                var h = AuraKit.HStack(fill, 18f);
+                h.padding = new RectOffset(28, 28, 0, 0);
+                var text = AuraKit.Text(fill.transform, "", AuraTheme.SizeBody, AuraTheme.Text, AuraWeight.SemiBold);
+                text.richText = true;
+                text.enableWordWrapping = false;
+                AuraKit.Flex(text);
+                var check = AuraKit.Icon(fill.transform, AuraIcons.Ok, 48f, AuraTheme.Lavender);
+                AuraKit.MakeButton(fill.gameObject, fill, () => OnRowPressed(captured));
+                _rows[c] = new Row { fill = fill, border = border, check = check, text = text };
             }
 
-            MakeText(card.transform, "Gap", 10f, FontStyles.Normal, 10f);
+            var promote = AuraKit.Pill(card.transform, "Make presenter", AuraIcons.Crown, AuraTheme.Ink, AuraTheme.Lavender,
+                                       OnPromotePressed, AuraTheme.MinTouch, AuraTheme.Lavender);
+            _promoteBg = promote.GetComponent<Image>();
+            _promoteText = promote.GetComponentInChildren<TextMeshProUGUI>();
 
-            (_promoteBg, _promoteText) = MakeButton(card.transform, "Promote", PromoteColor, OnPromotePressed,
-                                                    TextAlignmentOptions.Center);
-            var (_, closeText) = MakeButton(card.transform, "Close", CloseColor, Close, TextAlignmentOptions.Center);
-            closeText.text = "CLOSE";
-        }
-
-        private static TextMeshProUGUI MakeText(Transform parent, string name, float size, FontStyles style, float height)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.fontSize  = size;
-            t.fontStyle = style;
-            t.color     = Color.white;
-            t.alignment = TextAlignmentOptions.MidlineLeft;
-            t.enableWordWrapping = false;
-            t.overflowMode = TextOverflowModes.Ellipsis;
-            t.raycastTarget = false;
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = height;
-            return t;
-        }
-
-        private static (Image, TextMeshProUGUI) MakeButton(Transform parent, string name, Color color,
-                                                           UnityEngine.Events.UnityAction onClick,
-                                                           TextAlignmentOptions align)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = 76f;
-
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(onClick);
-
-            var textGo = new GameObject("Label", typeof(RectTransform));
-            textGo.transform.SetParent(go.transform, false);
-            var rt = (RectTransform)textGo.transform;
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(22f, 0f);
-            rt.offsetMax = new Vector2(-22f, 0f);
-
-            var t = textGo.AddComponent<TextMeshProUGUI>();
-            t.fontSize  = 32f;
-            t.fontStyle = FontStyles.Bold;
-            t.color     = Color.white;
-            t.alignment = align;
-            t.enableAutoSizing = true;
-            t.fontSizeMin = 20f;
-            t.fontSizeMax = 32f;
-            t.enableWordWrapping = false;
-            t.raycastTarget = false;
-            return (img, t);
-        }
-
-        private static void Stretch(RectTransform rt)
-        {
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var back = AuraKit.Pill(safe, "Back", AuraIcons.Back, AuraTheme.A(AuraTheme.Indigo, 0.96f), AuraTheme.Text,
+                                    Close, AuraViewer.BackHeight, AuraTheme.Slate);
+            AuraKit.Pin((RectTransform)back.transform, Vector2.zero, Vector2.zero,
+                        new Vector2(AuraViewer.Gutter, AuraViewer.Gutter), new Vector2(270, AuraViewer.BackHeight));
         }
     }
 }

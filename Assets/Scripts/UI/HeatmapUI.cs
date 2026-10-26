@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,37 +12,37 @@ using AuraSync.Space;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// Settings → HEATMAP (V3 Phase 10), above the bottom buttons:
+    /// Analysis → Heatmap (V3 Phase 10). Two pieces, so the recoloured model stays in view:
     ///
-    ///     HEATMAP · live                                     X
-    ///     [<]  Everyone  [>]                  whose attention: everyone, or one person
-    ///     never ■   least ▬▬▬▬▬▬▬▬ most                      the legend
-    ///     MOST                      LEAST
-    ///     1. Fan rotor      34      1. Spinner        0
-    ///     ...
-    ///     [ SAVE TO REPORTS ]  [ DONE ]
+    ///   top card      Heatmap · Live                        (x)
+    ///                 (<)          Everyone           (>)       whose attention
+    ///                 [] Never   Least ============ Most        the legend
     ///
-    /// The model is recoloured while it is open (HeatmapView) and back to normal on DONE. Live
-    /// counts refresh every 2 s. A heatmap can also be made from a recording (RECORDINGS →
-    /// HEATMAP), on the recording's model.
+    ///   bottom sheet  Most looked at        Least looked at
+    ///                 1 Fan rotor    34     1 Spinner   never
+    ///                 [Save to reports]
+    ///
+    /// The model is recoloured while it is open (HeatmapView) and back to normal when it closes.
+    /// Live counts refresh every 2 s. A heatmap can also be made from a recording (Recordings →
+    /// Heatmap), on the recording's model.
     /// </summary>
     public class HeatmapUI : MonoBehaviour
     {
         public static HeatmapUI Instance { get; private set; }
 
         private const string NavId = "heatmap";
-        private static readonly Color PanelColor  = new Color(0.07f, 0.09f, 0.13f, 0.97f);
-        private static readonly Color ButtonColor = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color AccentColor = new Color(0.36f, 0.30f, 0.85f, 1f);
+        private const string PanelId = "heatmap";
 
-        private GameObject _panel;
-        private TextMeshProUGUI _title, _who, _top, _bottom;
+        private AuraSlidePanel _top, _sheet;
+        private TextMeshProUGUI _status, _who;
+        private RectTransform _most, _least;
 
         private List<PersonStats> _people = new List<PersonStats>();
         private int _personIndex = -1; // -1 = everyone
         private bool _fromRecording;
         private string _recordingName = "";
         private float _nextRefresh;
+        private string _shown;
 
         void Awake()
         {
@@ -63,16 +62,16 @@ namespace AuraSync.UI
 
         private void OnBus(StateChange c)
         {
-            if (c.key != StateKeys.ModelLoaded || !_panel.activeSelf) return;
+            if (c.key != StateKeys.ModelLoaded || !IsOpen) return;
             // The same model again (the full version replacing the preview): paint it again.
             // Another model: a recording's heatmap no longer fits it.
             if (_fromRecording) Close();
             else Refresh();
         }
 
-        public bool IsOpen => _panel != null && _panel.activeSelf;
+        public bool IsOpen => _sheet != null && _sheet.IsShown;
 
-        // ── Opening ────────────────────────────────────────────────────────────
+        // ── Opening ────────────────────────────────────────────────────
 
         public void Open()
         {
@@ -95,19 +94,22 @@ namespace AuraSync.UI
         private void Show()
         {
             ModelPartsDrawerUI.Instance?.SetOpen(false);
-            PartNotesPanelUI.Instance?.CloseList();
-            SectionCutUI.Instance?.CloseToolbar();
-            SimulationPanelUI.Instance?.Hide();
-            if (!_panel.activeSelf) PanelNavigator.Push(NavId, this, Close);
-            _panel.SetActive(true);
+            bool wasOpen = IsOpen;
+            ViewerPanels.Opened(PanelId, Close);
+            if (!wasOpen) PanelNavigator.Push(NavId, this, Close);
+            _shown = null;
             Refresh();
+            _top.Show();
+            _sheet.Show();
         }
 
         public void Close()
         {
             HeatmapView.Clear();
-            if (_panel == null || !_panel.activeSelf) return;
-            _panel.SetActive(false);
+            if (!IsOpen) return;
+            _top.Hide();
+            _sheet.Hide();
+            ViewerPanels.Closed(PanelId);
             PanelNavigator.Remove(NavId);
         }
 
@@ -123,7 +125,7 @@ namespace AuraSync.UI
             }
         }
 
-        // ── Content ────────────────────────────────────────────────────────────
+        // ── Content ────────────────────────────────────────────────────
 
         private Dictionary<string, float> Scores()
         {
@@ -139,22 +141,42 @@ namespace AuraSync.UI
             Dictionary<string, float> scores = Scores();
             HeatmapView.Show(scores);
 
-            _title.text = _fromRecording ? $"HEATMAP  ·  {Esc(_recordingName)}" : "HEATMAP  ·  live";
+            _status.text = _fromRecording ? Esc(_recordingName) : "Live";
             _who.text = Esc(WhoName) + (_personIndex >= 0 && !_people[_personIndex].present ? "  (left)" : "");
 
             List<KeyValuePair<string, float>> ranked = HeatmapView.Rank(scores);
-            _top.text = Lines(ranked.Take(5), "MOST");
-            _bottom.text = Lines(Enumerable.Reverse(ranked).Take(5), "LEAST");
+            var most = ranked.Take(5).ToList();
+            var least = Enumerable.Reverse(ranked).Take(5).ToList();
+
+            // The lists rebuild only when they change (live refreshes come every 2 s).
+            string sig = string.Join("|", most.Concat(least).Select(kv => kv.Key + ":" + kv.Value.ToString("0")));
+            if (sig == _shown) return;
+            _shown = sig;
+            Fill(_most, most);
+            Fill(_least, least);
         }
 
-        private static string Lines(IEnumerable<KeyValuePair<string, float>> rows, string head)
+        private static void Fill(RectTransform list, List<KeyValuePair<string, float>> rows)
         {
-            var sb = new StringBuilder($"<b>{head}</b>\n");
+            AuraKit.ClearChildren(list, "Head");
+            if (rows.Count == 0) { AuraKit.Text(list, "No parts.", AuraTheme.SizeCaption, AuraTheme.TextDim); return; }
+            float max = Mathf.Max(1f, rows.Max(r => r.Value));
             int i = 1;
             foreach (var kv in rows)
-                sb.Append($"{i++}. {Esc(HeatmapView.Label(kv.Key))}  <color=#FFFFFF99>{(kv.Value > 0f ? kv.Value.ToString("0") : "never")}</color>\n");
-            if (i == 1) sb.Append("<color=#FFFFFF99>No parts.</color>");
-            return sb.ToString().TrimEnd();
+            {
+                var row = AuraKit.Rect(list, "Row");
+                AuraKit.HStack(row, 12f, 0, TextAnchor.MiddleLeft);
+                AuraKit.Size(row, -1, 56f);
+                var dot = AuraKit.Box(row, "Dot", kv.Value > 0f ? HeatmapView.Ramp(kv.Value / max) : HeatmapView.Never, 9f);
+                AuraKit.Size(dot, 18f, 18f);
+                var n = AuraKit.Text(row, $"{i++}  {Esc(HeatmapView.Label(kv.Key))}", AuraTheme.SizeCaption, AuraTheme.Text);
+                n.enableWordWrapping = false;
+                n.overflowMode = TextOverflowModes.Ellipsis;
+                AuraKit.Flex(n);
+                AuraKit.Text(row, kv.Value > 0f ? kv.Value.ToString("0") : "never", AuraTheme.SizeCaption,
+                             kv.Value > 0f ? AuraTheme.Lavender : AuraTheme.TextDim, AuraWeight.SemiBold,
+                             TextAlignmentOptions.MidlineRight).enableWordWrapping = false;
+            }
         }
 
         private void Step(int d)
@@ -180,106 +202,125 @@ namespace AuraSync.UI
             foreach (var kv in HeatmapView.Rank(scores))
                 r.parts.Add(new PartRow { path = kv.Key, label = HeatmapView.Label(kv.Key), attention = kv.Value });
             ReportStore.Save(r);
-            Toast.Show("Heatmap saved to REPORTS.");
+            Toast.Show("Heatmap saved to Reports.");
         }
 
         private static string Esc(string s) => (s ?? "").Replace("<", "").Replace(">", "");
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 97; // the drawer's level; they never show together
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
-
-            _panel = new GameObject("HeatmapPanel", typeof(RectTransform));
-            _panel.transform.SetParent(transform, false);
-            var rt = (RectTransform)_panel.transform;
-            rt.anchorMin = new Vector2(0.16f, 0.215f);
-            rt.anchorMax = new Vector2(0.98f, 0.215f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _panel.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            _panel.AddComponent<Image>().color = PanelColor;
-            _panel.AddComponent<TouchBlocker>();
-            var vg = _panel.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(14, 14, 10, 12);
-            vg.spacing = 8;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
-
-            var head = UIBits.Row(_panel.transform, 50f);
-            _title = UIBits.Text(head.transform, "HEATMAP", 22f, Color.white);
-            _title.fontStyle = FontStyles.Bold;
-            _title.overflowMode = TextOverflowModes.Ellipsis;
-            _title.enableWordWrapping = false;
-            UIBits.Flex(_title.gameObject);
-            UIBits.Button(head.transform, "X", new Color(0.45f, 0.14f, 0.14f), Close, 52f);
-
-            var who = UIBits.Row(_panel.transform, 54f);
-            UIBits.Button(who.transform, "<", ButtonColor, () => Step(-1), 56f);
-            _who = UIBits.Text(who.transform, "Everyone", 22f, Color.white);
-            _who.alignment = TextAlignmentOptions.Center;
-            _who.fontStyle = FontStyles.Bold;
-            UIBits.Flex(_who.gameObject);
-            UIBits.Button(who.transform, ">", ButtonColor, () => Step(1), 56f);
-
-            // Legend: grey = never, then the ramp from least to most.
-            var legend = UIBits.Row(_panel.transform, 34f);
-            var never = new GameObject("Never", typeof(RectTransform), typeof(Image));
-            never.transform.SetParent(legend.transform, false);
-            never.GetComponent<Image>().color = HeatmapView.Never;
-            var nle = never.AddComponent<LayoutElement>(); nle.minWidth = nle.preferredWidth = 30f;
-            UIBits.Text(legend.transform, "never", 17f, new Color(1f, 1f, 1f, 0.7f)).gameObject.AddComponent<LayoutElement>().preferredWidth = 70f;
-            UIBits.Text(legend.transform, "least", 17f, new Color(1f, 1f, 1f, 0.7f)).gameObject.AddComponent<LayoutElement>().preferredWidth = 52f;
-            var ramp = new GameObject("Ramp", typeof(RectTransform), typeof(Image));
-            ramp.transform.SetParent(legend.transform, false);
-            ramp.GetComponent<Image>().sprite = RampSprite();
-            UIBits.Flex(ramp);
-            UIBits.Text(legend.transform, "most", 17f, new Color(1f, 1f, 1f, 0.7f)).gameObject.AddComponent<LayoutElement>().preferredWidth = 52f;
-
-            var lists = new GameObject("Lists", typeof(RectTransform));
-            lists.transform.SetParent(_panel.transform, false);
-            var lh = lists.AddComponent<HorizontalLayoutGroup>();
-            lh.spacing = 12;
-            lh.childControlWidth = lh.childControlHeight = true;
-            lh.childForceExpandWidth = true; lh.childForceExpandHeight = false;
-            _top = UIBits.Text(lists.transform, "", 18f, Color.white);
-            _bottom = UIBits.Text(lists.transform, "", 18f, Color.white);
-            foreach (var t in new[] { _top, _bottom })
-            {
-                t.alignment = TextAlignmentOptions.TopLeft;
-                t.enableWordWrapping = false;
-                t.overflowMode = TextOverflowModes.Ellipsis;
-                t.richText = true;
-            }
-
-            var hint = UIBits.Text(_panel.transform,
-                "Picks and notes and AI questions count most, then time selected or isolated, then time looked at.",
-                15f, new Color(1f, 1f, 1f, 0.55f));
-            hint.enableWordWrapping = true;
-
-            var btns = UIBits.Row(_panel.transform, 58f);
-            UIBits.Flex(UIBits.Button(btns.transform, "SAVE TO REPORTS", ButtonColor, SaveReport, 100f));
-            UIBits.Flex(UIBits.Button(btns.transform, "DONE", AccentColor, Close, 100f));
-
-            _panel.SetActive(false);
+            var safe = AuraViewer.CreateCanvas(transform, "HeatmapCanvas", 97, out _);
+            BuildTop(safe);
+            BuildSheet(safe);
         }
 
-        private static Sprite _ramp;
-        private static Sprite RampSprite()
+        private void BuildTop(RectTransform safe)
+        {
+            var card = AuraKit.Box(safe, "HeatmapTop", AuraTheme.A(AuraTheme.Indigo, 0.95f), AuraTheme.Radius + 6f, true);
+            AuraKit.Border(card, AuraTheme.Slate, AuraTheme.Radius + 6f);
+            card.gameObject.AddComponent<TouchBlocker>();
+            var rt = card.rectTransform;
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(1, 1);
+            rt.pivot = new Vector2(0.5f, 1);
+            rt.offsetMin = new Vector2(AuraViewer.Gutter, -AuraViewer.TopReserve - 300f);
+            rt.offsetMax = new Vector2(-AuraViewer.Gutter, -AuraViewer.TopReserve);
+            var v = AuraKit.VStack(card, 14f);
+            v.padding = new RectOffset(32, 28, 22, 26);
+            AuraKit.FitHeight(card);
+
+            var head = AuraKit.Rect(card.transform, "Header");
+            AuraKit.HStack(head, 14f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(head, -1, 84f);
+            AuraKit.Icon(head, AuraIcons.Chart, 46f, AuraTheme.Lavender);
+            var title = AuraKit.Text(head, "Heatmap", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            title.enableWordWrapping = false;
+            _status = AuraKit.Caps(head, "", AuraTheme.Lavender);
+            _status.enableWordWrapping = false;
+            _status.overflowMode = TextOverflowModes.Ellipsis;
+            AuraKit.Flex(_status);
+            AuraWidgets.Round(head, AuraIcons.Close, 80f, false, Close, out _);
+
+            var who = AuraKit.Rect(card.transform, "Who");
+            AuraKit.HStack(who, 14f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(who, -1, 92f);
+            AuraWidgets.Round(who, AuraIcons.Prev, 88f, false, () => Step(-1), out _);
+            _who = AuraKit.Text(who, "Everyone", AuraTheme.SizeBody, AuraTheme.Text, AuraWeight.SemiBold, TextAlignmentOptions.Center);
+            _who.enableWordWrapping = false;
+            _who.overflowMode = TextOverflowModes.Ellipsis;
+            AuraKit.Flex(_who);
+            AuraWidgets.Round(who, AuraIcons.Next, 88f, false, () => Step(1), out _);
+
+            // Legend: grey = never, then the ramp from least to most.
+            var legend = AuraKit.Rect(card.transform, "Legend");
+            AuraKit.HStack(legend, 12f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(legend, -1, 44f);
+            var never = AuraKit.Box(legend, "Never", HeatmapView.Never, 10f);
+            AuraKit.Size(never, 32f, 22f);
+            AuraKit.Text(legend, "Never", AuraTheme.SizeLabel, AuraTheme.TextDim).enableWordWrapping = false;
+            AuraKit.Size(AuraKit.Rect(legend, "Gap"), 18f);
+            AuraKit.Text(legend, "Least", AuraTheme.SizeLabel, AuraTheme.TextDim).enableWordWrapping = false;
+            var holder = AuraKit.Rect(legend, "RampHolder");
+            AuraKit.Flex(holder);
+            var ramp = AuraKit.Box(holder, "Ramp", AuraTheme.A(AuraTheme.Slate, 0.6f), 11f);
+            var rrt = ramp.rectTransform;
+            rrt.anchorMin = new Vector2(0, 0.5f); rrt.anchorMax = new Vector2(1, 0.5f);
+            rrt.offsetMin = new Vector2(0, -11f); rrt.offsetMax = new Vector2(0, 11f);
+            var grad = AuraKit.Rect(ramp.transform, "Gradient");
+            AuraKit.Fill(grad, 3, 3, 3, 3);
+            var raw = grad.gameObject.AddComponent<RawImage>();
+            raw.texture = RampTexture();
+            raw.raycastTarget = false;
+            AuraKit.Text(legend, "Most", AuraTheme.SizeLabel, AuraTheme.TextDim).enableWordWrapping = false;
+
+            _top = AuraSlidePanel.Attach(rt, rt.anchoredPosition, rt.anchoredPosition + new Vector2(0, 70f));
+        }
+
+        private void BuildSheet(RectTransform safe)
+        {
+            var sheet = AuraViewer.ToolSheet(safe, "HeatmapSheet");
+            sheet.gameObject.AddComponent<TouchBlocker>();
+
+            var cols = AuraKit.Rect(sheet, "Lists");
+            var ch = AuraKit.HStack(cols, 30f, 0, TextAnchor.UpperLeft);
+            ch.childForceExpandWidth = true;
+            ch.childForceExpandHeight = false;
+            _most = Column(cols, "Most looked at");
+            _least = Column(cols, "Least looked at");
+
+            var foot = AuraKit.Rect(sheet, "Foot");
+            AuraKit.HStack(foot, 14f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(foot, -1, 92f);
+            AuraWidgets.Chip(foot, "Save to reports", AuraIcons.Reports, false, SaveReport, out _, 92f);
+            AuraKit.Flex(AuraKit.Rect(foot, "Space"));
+
+            AuraKit.Text(sheet, "Picks, notes and AI questions count most, then time selected or isolated, then time looked at.",
+                         AuraTheme.SizeLabel, AuraTheme.TextDim);
+
+            _sheet = AuraViewer.SlideUp(sheet);
+        }
+
+        private static RectTransform Column(RectTransform parent, string title)
+        {
+            var col = AuraKit.Rect(parent, title);
+            AuraKit.VStack(col, 4f);
+            AuraKit.Flex(col);
+            var head = AuraKit.Caps(col, title, AuraTheme.Lavender);
+            head.name = "Head";
+            AuraKit.Size(head, -1, 48f);
+            return col;
+        }
+
+        private static Texture2D _ramp;
+        private static Texture2D RampTexture()
         {
             if (_ramp != null) return _ramp;
-            var tex = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
-            for (int x = 0; x < 64; x++) tex.SetPixel(x, 0, HeatmapView.Ramp(x / 63f));
-            tex.Apply();
-            return _ramp = Sprite.Create(tex, new Rect(0, 0, 64, 1), new Vector2(0.5f, 0.5f));
+            _ramp = new Texture2D(64, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+            for (int x = 0; x < 64; x++) _ramp.SetPixel(x, 0, HeatmapView.Ramp(x / 63f));
+            _ramp.Apply();
+            return _ramp;
         }
     }
 

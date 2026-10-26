@@ -96,7 +96,7 @@ namespace AuraSync.Space
         public event Action OnChanged;
 
         private static readonly Color CapColor   = new Color(0.93f, 0.56f, 0.26f, 1f);
-        private static readonly Color FrameColor = new Color(0.30f, 0.95f, 1.00f, 1f);
+        private static readonly Color FrameColor = new Color(0.60f, 0.58f, 0.77f, 1f); // the app's lavender (was cyan)
 
         private static readonly int PlaneId = Shader.PropertyToID("_AuraSectionPlane");
         private static readonly int CapId   = Shader.PropertyToID("_AuraSectionCapColor");

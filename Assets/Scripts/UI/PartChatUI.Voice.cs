@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -8,30 +7,28 @@ using AuraSync.AI;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// Speaking a question on the ASK tab: tap MIC, ask, and the question is sent and answered
-    /// exactly as if it had been typed and sent - no extra tap. The words heard appear as your
-    /// message in the conversation, so you can see what the AI was asked.
+    /// Speaking a question on the Ask tab: tap the mic, ask, and the question is sent and answered
+    /// exactly as if it had been typed - no extra tap. The words heard appear as your message, so
+    /// you can see what the AI was asked.
     ///
-    /// Uses the same recorder as FIND's voice search (SpeechInput) and the same speech-to-text
-    /// (the AI server's /transcribe), with the part's name and the model's part names as a hint.
-    /// While listening and working, the question box's grey hint shows what is happening.
+    /// Uses the same recorder as Find's voice search (SpeechInput) and the same speech-to-text, with
+    /// the part's name and the model's part names as a hint. While listening, the question box's
+    /// hint shows what is happening and the mic turns rose with a stop square.
     /// </summary>
     public partial class PartChatUI
     {
-        private const string AskHint = "Ask your own question...";
+        private const string AskHint = "Ask about this part…";
 
-        private Button          _askMicButton;
-        private Image           _askMicImage;
-        private TextMeshProUGUI _askMicLabel;
-        private Coroutine       _askListening;
-        private Coroutine       _askHintReset;
+        private Button _askMicButton;
+        private Image _askMicImage, _askMicIcon;
+        private Coroutine _askListening;
+        private Coroutine _askHintReset;
         private AiClient.Pending _pendingAskSpeech;
 
         private void BuildAskMic(Transform row)
         {
-            _askMicButton = MakeButton(row, "Mic", "MIC", ButtonColor, OnAskMicPressed, height: 60f, fontSize: 19, minWidth: 92f);
-            _askMicImage = _askMicButton.GetComponent<Image>();
-            _askMicLabel = _askMicButton.GetComponentInChildren<TextMeshProUGUI>();
+            _askMicButton = AuraWidgets.Round(row, AuraIcons.Mic, 104f, false, OnAskMicPressed, out _askMicIcon);
+            _askMicImage = (Image)_askMicButton.targetGraphic;
         }
 
         private void OnAskMicPressed()
@@ -39,13 +36,13 @@ namespace AuraSync.UI
             SpeechInput speech = SpeechInput.Ensure();
             if (speech.IsRecording)
             {
-                speech.StopRecording(); // the callback carries on from here
+                speech.StopRecording();
                 return;
             }
             if (_thread == null || _thread.waiting || _pendingAskSpeech != null) return;
 
             _input.DeactivateInputField();
-            _input.text = ""; // the hint area shows the listening state
+            _input.text = "";
             ChatThread thread = _thread;
 
             speech.StartRecording((wav, error) => OnAskRecorded(thread, wav, error));
@@ -54,13 +51,12 @@ namespace AuraSync.UI
 
         private IEnumerator ShowAskListening(SpeechInput speech)
         {
-            _askMicLabel.text = "STOP";
-            _askMicImage.color = ListeningColor;
+            SetMicLook(_askMicImage, _askMicIcon, true);
             _sendButton.interactable = false;
             while (speech != null && speech.IsRecording)
             {
                 int bars = Mathf.Clamp(Mathf.RoundToInt(speech.Level * 60f), 0, 10);
-                SetAskHint($"Listening... {Mathf.Max(0f, SpeechInput.MaxSeconds - speech.Elapsed):0}s  {new string('|', bars)}");
+                SetAskHint($"Listening… {Mathf.Max(0f, SpeechInput.MaxSeconds - speech.Elapsed):0}s  {new string('|', bars)}");
                 yield return null;
             }
             ResetAskMic();
@@ -78,7 +74,7 @@ namespace AuraSync.UI
                 return;
             }
 
-            SetAskHint("Working out what you said...");
+            SetAskHint("Working out what you said…");
             _askMicButton.interactable = false;
             _sendButton.interactable = false;
 
@@ -93,7 +89,6 @@ namespace AuraSync.UI
                 if (string.IsNullOrWhiteSpace(r.text)) { FlashAskHint("Didn't catch that. Try again, or type."); return; }
 
                 SetAskHint(AskHint);
-                // Only send into the conversation it was spoken for, and only if it is still on screen.
                 if (!IsOpen || _tab != Tab.Ask || _thread != thread) return;
                 Send(r.text, addUserMessage: true);
             });
@@ -113,7 +108,6 @@ namespace AuraSync.UI
             if (_input != null && _input.placeholder is TextMeshProUGUI hint) hint.text = Esc(text);
         }
 
-        /// <summary>Shows a voice problem in the hint for a few seconds, then puts the normal hint back.</summary>
         private void FlashAskHint(string text)
         {
             SetAskHint(text);
@@ -129,9 +123,7 @@ namespace AuraSync.UI
 
         private void ResetAskMic()
         {
-            if (_askMicLabel == null) return;
-            _askMicLabel.text = "MIC";
-            _askMicImage.color = ButtonColor;
+            SetMicLook(_askMicImage, _askMicIcon, false);
             if (_sendButton != null) _sendButton.interactable = _thread == null || !_thread.waiting;
         }
 

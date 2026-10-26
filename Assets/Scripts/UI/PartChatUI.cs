@@ -10,30 +10,23 @@ using AuraSync.Space;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// The AI part assistant: select a part, tap ASK AI beside it, and a chat opens next to the part.
+    /// The AI assistant (dock tab AI, or the Ask AI chip beside a selected part). It slides in from
+    /// the right and takes the right side of the screen. There is no panel box: a soft fade from the
+    /// screen edge, and every message on its own bubble, so it reads as see-through while the text
+    /// never sits directly on the model.
     ///
-    ///   1. The first message is the part's facts from the knowledge file - instant, no AI, works
-    ///      offline.
-    ///   2. Suggested questions sit under it as tappable chips, plus a text box for your own.
-    ///   3. Answers come from the AI server (ai-server/), given the part's facts, the model's summary
-    ///      and the conversation so far.
-    ///   4. The conversation carries on: close it and reopen it on the same part and it is still
-    ///      there; open another part and that part gets its own conversation. All forgotten when a
-    ///      different model loads.
+    ///   [Find | Ask]                              (⋯)     Ask by default
+    ///   About · Fan rotor                     (Isolate)
+    ///   ┌ facts from the knowledge file ┐                 instant, offline
+    ///                     ┌ your question ┐
+    ///   ┌ the AI's answer · Helpful? Yes No Share ┐
+    ///   (suggested question) (suggested question)
+    ///   [Ask about this part…          ] (mic) (send)
     ///
-    /// For a model with no part knowledge (the House) every chat is about the whole model.
-    ///
-    /// The panel has two tabs (Phase 4): **FIND** searches for a part by name, job or voice
-    /// (PartChatUI.Search.cs), **ASK** is the chat. The AI button on the left rail opens ASK when a
-    /// part is selected and FIND when nothing is; ASK AI beside a part always opens ASK.
-    ///
-    /// The panel sits on the opposite half of the screen from the part (top or bottom in portrait,
-    /// left or right in landscape) with a thin line to it, so the part stays visible while you talk
-    /// about it. It moves when the part crosses well past the middle, not on every small rotation.
-    ///
-    /// **Phase 3b:** in a room, every AI answer has a SHARE button: everyone then sees it on a card
-    /// beside the part (SharedAnswerCard, SharedAnswers). ASK MORE on that card opens this chat on
-    /// the part with the shared question and answer in it, so follow-ups carry on from there.
+    /// Conversations are kept per model and per part, on the phone (PartChatStore): closing the
+    /// panel, switching parts or reopening the model later carries on where it left off. "Clear
+    /// chat" under ⋯ removes them. In a room every AI answer can be shared with everyone (Phase 3b).
+    /// Find (PartChatUI.Search.cs) searches for a part by name, job or voice.
     /// </summary>
     public partial class PartChatUI : MonoBehaviour
     {
@@ -46,56 +39,40 @@ namespace AuraSync.UI
         private const string RetryChip = "Try again";
         private const string StopChip = "Stop waiting";
 
-        private static readonly Color PanelColor     = new Color(0.07f, 0.09f, 0.13f, 0.97f);
-        private static readonly Color AskButtonColor = new Color(0.36f, 0.30f, 0.85f, 0.97f);
-        private static readonly Color UserBubble     = new Color(0.20f, 0.34f, 0.66f, 1f);
-        private static readonly Color AiBubble       = new Color(0.16f, 0.18f, 0.24f, 1f);
-        private static readonly Color IntroBubble    = new Color(0.13f, 0.22f, 0.24f, 1f);
-        private static readonly Color ErrorBubble    = new Color(0.42f, 0.17f, 0.17f, 1f);
-        private static readonly Color ChipColor      = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color ButtonColor    = new Color(0.22f, 0.26f, 0.36f, 0.95f);
-        private static readonly Color LeaderColor    = new Color(0.62f, 0.56f, 1f, 0.85f);
-        private static readonly Color DimText        = new Color(1f, 1f, 1f, 0.55f);
-        private static readonly Color RatedColor     = new Color(0.20f, 0.52f, 0.42f, 1f);
-
-        // ── UI references ──────────────────────────────────────────────────────
-        private Canvas          _canvas;
-        private RectTransform   _canvasRt;
-        private RectTransform   _askButton;
-        private GameObject      _panel;
-        private RectTransform   _panelRt;
-        private RectTransform   _leader;
-        private TextMeshProUGUI _title;
-        private GameObject      _isolateButton;
+        // ── UI references ──────────────────────────────────────────────
+        private Canvas _canvas;
+        private RectTransform _safe;
+        private RectTransform _askChip;
+        private AuraSlidePanel _panel;
+        private RectTransform _panelRt;
+        private System.Action<int> _setTab;
+        private TextMeshProUGUI _about;
+        private GameObject _isolateButton;
         private TextMeshProUGUI _isolateLabel;
-        private ScrollRect      _scroll;
-        private RectTransform   _messages;
-        private RectTransform   _chips;
-        private TMP_InputField  _input;
-        private Button          _sendButton;
+        private GameObject _menu;
+        private ScrollRect _scroll;
+        private RectTransform _messages;
+        private RectTransform _chips;
+        private TMP_InputField _input;
+        private Button _sendButton;
 
         private enum Tab { Ask, Find }
-        private Tab             _tab = Tab.Ask;
-        private GameObject      _askPage;
-        private GameObject      _findPage;
-        private Image           _askTabImage;
-        private Image           _findTabImage;
-        private static readonly Color TabOn  = new Color(0.36f, 0.30f, 0.85f, 1f);
-        private static readonly Color TabOff = new Color(0.16f, 0.18f, 0.24f, 1f);
+        private Tab _tab = Tab.Ask;
+        private GameObject _askPage;
+        private GameObject _findPage;
 
-        // ── State ──────────────────────────────────────────────────────────────
+        // ── State ──────────────────────────────────────────────────────
         private ChatThread _thread;
-        private string     _path = "";        // "" = the whole model
-        private int        _placement = -1;   // which half the panel is in; -1 = not placed yet
-        private bool       _railVisible;
+        private string _path = "";        // "" = the whole model
+        private bool _railVisible;
 
         private ModelPartSelector _selector;
-        private ModelIsolator     _isolator;
-        private PartKnowledge     _knowledge;
+        private ModelIsolator _isolator;
+        private PartKnowledge _knowledge;
 
-        public bool IsOpen => _panel != null && _panel.activeSelf;
+        public bool IsOpen => _panel != null && _panel.IsShown;
 
-        // ── Lifecycle ──────────────────────────────────────────────────────────
+        // ── Lifecycle ──────────────────────────────────────────────────
 
         void Awake()
         {
@@ -116,6 +93,7 @@ namespace AuraSync.UI
             if (_selector != null) _selector.OnSelectionChanged -= OnSelectionChanged;
             if (_isolator != null) _isolator.OnIsolationChanged -= RefreshIsolateButton;
             if (_knowledge != null) _knowledge.OnChanged -= OnKnowledgeChanged;
+            PanelNavigator.Remove(NavId);
             if (Instance == this) Instance = null;
         }
 
@@ -133,7 +111,6 @@ namespace AuraSync.UI
             _isolator = ModelIsolator.Instance;
             _isolator.OnIsolationChanged += RefreshIsolateButton;
 
-            // Created by SpaceSceneManager when the first model finishes loading.
             while (PartKnowledge.Instance == null) yield return null;
             _knowledge = PartKnowledge.Instance;
             _knowledge.OnChanged += OnKnowledgeChanged;
@@ -148,22 +125,20 @@ namespace AuraSync.UI
             {
                 _railVisible = modelShown;
                 SpaceSessionHUD.Instance.SetSlotVisible(RailId, modelShown);
+                if (!modelShown) Close();
             }
-
-            PlaceAskButton(modelShown);
-            if (IsOpen) PlacePanel();
+            PlaceAskChip(modelShown);
         }
 
-        // ── Opening and closing ────────────────────────────────────────────────
+        // ── Opening and closing ────────────────────────────────────────
 
         private void OnAskPressed() => Open(CurrentSelection());
 
+        /// <summary>The dock tab: opens on Ask (about the selected part, else the whole model).</summary>
         private void OnRailPressed()
         {
             if (IsOpen) { Close(); return; }
-            string sel = CurrentSelection();
-            if (!string.IsNullOrEmpty(sel) && _knowledge != null && _knowledge.HasParts) Open(sel);
-            else OpenFind();
+            Open(CurrentSelection());
         }
 
         /// <summary>This device's own pick, else the presenter's, else "" (the whole model).</summary>
@@ -177,81 +152,94 @@ namespace AuraSync.UI
         public void Open(string path)
         {
             if (string.IsNullOrEmpty(SpaceSceneManager.CurrentModelKey)) return;
-
-            // A model without real part knowledge (a scan cut into chunks) only talks as a whole.
             if (_knowledge == null || !_knowledge.HasParts) path = "";
 
             _path = path ?? "";
             _thread = PartChatStore.Get(SpaceSceneManager.CurrentModelKey, _path, () => NewThread(_path));
-            _placement = -1;
 
-            _panel.SetActive(true);
+            ShowPanel();
             SetTab(Tab.Ask);
             Render();
             RefreshIsolateButton();
-            PanelNavigator.Push(NavId, this, Close);
         }
 
-        /// <summary>Shows one tab's page and lights its tab button.</summary>
+        private void ShowPanel()
+        {
+            if (IsOpen) return;
+            ViewerPanels.Opened(RailId, Close);
+            PanelNavigator.Push(NavId, this, Close);
+            SpaceSessionHUD.Instance?.SetDockHidden(true); // the panel takes the right side
+            _panel.Show();
+        }
+
         private void SetTab(Tab tab)
         {
-            // A recording belongs to the tab it was started on.
             if (tab != Tab.Ask && _askListening != null) StopAskListening();
             if (tab != Tab.Find && _listening != null) StopListening();
             _tab = tab;
             _askPage.SetActive(tab == Tab.Ask);
             _findPage.SetActive(tab == Tab.Find);
-            _askTabImage.color = tab == Tab.Ask ? TabOn : TabOff;
-            _findTabImage.color = tab == Tab.Find ? TabOn : TabOff;
-            _placement = -1; // the part the panel points at may have changed
-            if (tab == Tab.Ask && _thread != null) _title.text = Esc(_thread.title);
-            if (tab == Tab.Find) _title.text = "";
+            _setTab(tab == Tab.Ask ? 1 : 0);
+            if (_menu != null) _menu.SetActive(false);
+            RefreshAbout();
             RefreshIsolateButton();
         }
 
-        private void OnAskTabPressed()
+        private void OnTabChanged(int i)
         {
-            if (_tab == Tab.Ask) return;
-            // Ask about what Find just picked, else the current selection, else the whole model.
-            string path = !string.IsNullOrEmpty(_findPath) ? _findPath : CurrentSelection();
-            Open(path);
+            if (i == 1)
+            {
+                if (_tab == Tab.Ask) return;
+                // Ask about what Find just picked, else the current selection, else the whole model.
+                string path = !string.IsNullOrEmpty(_findPath) ? _findPath : CurrentSelection();
+                Open(path);
+            }
+            else OpenFind();
         }
 
-        /// <summary>The part the panel should point its line at: the chat's part, or Find's pick.</summary>
-        private string FocusPath => _tab == Tab.Ask ? _path : _findPath;
+        private void RefreshAbout()
+        {
+            if (_about == null) return;
+            if (_tab == Tab.Find) { _about.text = "<color=#A9A8CC>Find a part by its name, job or where it is</color>"; return; }
+            string title = _thread != null ? _thread.title : "";
+            _about.text = string.IsNullOrEmpty(_path)
+                ? $"<color=#A9A8CC>About ·</color> {Esc(title)} <color=#A9A8CC>(whole model)</color>"
+                : $"<color=#A9A8CC>About ·</color> {Esc(title)}";
+        }
 
         public void Close()
         {
-            if (_panel == null || !_panel.activeSelf) return;
+            if (!IsOpen) return;
             if (_input != null) _input.DeactivateInputField();
             StopListening();
             StopAskListening();
-            _panel.SetActive(false);
-            _leader.gameObject.SetActive(false);
+            _panel.Hide();
+            if (_menu != null) _menu.SetActive(false);
+            ViewerPanels.Closed(RailId);
             PanelNavigator.Remove(NavId);
+            SpaceSessionHUD.Instance?.SetDockHidden(false);
         }
 
         private void OnSelectionChanged()
         {
             // While the chat is open, picking another part moves the conversation to that part.
-            // Clearing the selection (tapping empty space) leaves the chat where it is, and the
-            // presenter's picks never move it - only this device's own.
+            // Clearing the selection leaves it where it is; the presenter's picks never move it.
             if (!IsOpen || _selector == null) return;
             string local = _selector.LocalPath;
-            if (!string.IsNullOrEmpty(local) && local != _path && _knowledge != null && _knowledge.HasParts)
+            if (_tab == Tab.Ask && !string.IsNullOrEmpty(local) && local != _path && _knowledge != null && _knowledge.HasParts)
                 Open(local);
         }
 
         private void OnKnowledgeChanged()
         {
-            // A new model (or a reload of this one): the open conversation belongs to the old one.
+            // A new model (or a reload): the open conversation belongs to the old one.
             Close();
             _findPath = "";
             _hits.Clear();
             if (_findInput != null) _findInput.SetTextWithoutNotify("");
         }
 
-        // ── Threads ────────────────────────────────────────────────────────────
+        // ── Threads ────────────────────────────────────────────────────
 
         private ChatThread NewThread(string path)
         {
@@ -263,7 +251,7 @@ namespace AuraSync.UI
             {
                 thread.title = modelName;
                 string intro = $"<b>{Esc(modelName)}</b>";
-                if (file != null && !string.IsNullOrEmpty(file.context) && file.context != modelName) intro += $"\n<color=#9AA4B8>{Esc(file.context)}</color>";
+                if (file != null && !string.IsNullOrEmpty(file.context) && file.context != modelName) intro += $"\n<color=#A9A8CC>{Esc(file.context)}</color>";
                 intro += file != null && !string.IsNullOrEmpty(file.summary)
                     ? $"\n{Esc(file.summary)}"
                     : "\nAsk anything about this model.";
@@ -279,11 +267,11 @@ namespace AuraSync.UI
 
                 string intro = $"<b>{Esc(label)}</b>";
                 if (!string.IsNullOrEmpty(e.function)) intro += $"\n{Esc(e.function)}";
-                if (!string.IsNullOrEmpty(e.material)) intro += $"\n<color=#9AA4B8>Material:</color> {Esc(e.material)}";
+                if (!string.IsNullOrEmpty(e.material)) intro += $"\n<color=#A9A8CC>Material:</color> {Esc(e.material)}";
                 string touches = string.Join(", ", (e.connectsTo ?? new List<string>()).Select(p => PartNames.Display(p, "")).Where(s => s.Length > 0));
-                if (touches.Length > 0) intro += $"\n<color=#9AA4B8>Touches:</color> {Esc(touches)}";
+                if (touches.Length > 0) intro += $"\n<color=#A9A8CC>Touches:</color> {Esc(touches)}";
                 string moves = MotionWords(e.motion != null ? e.motion.type : "");
-                if (moves.Length > 0) intro += $"\n<color=#9AA4B8>Moves:</color> {moves} when the {Esc(modelName.ToLowerInvariant())} is working";
+                if (moves.Length > 0) intro += $"\n<color=#A9A8CC>Moves:</color> {moves} when the {Esc(modelName.ToLowerInvariant())} is working";
 
                 thread.messages.Add(new ChatMessage { isIntro = true, text = intro });
                 thread.suggestions = new List<string> { "Explain it simply", "Why is it made of that?", "What happens if it fails?" };
@@ -291,8 +279,7 @@ namespace AuraSync.UI
                 return thread;
             }
 
-            // A part with no entry of its own: usually a group of parts (the fan and turbine sit
-            // under one group node). Describe it by what it contains.
+            // A part with no entry of its own: usually a group of parts. Describe it by what it holds.
             List<string> inside = PartsUnder(path);
             Transform t = ModelRaycaster.FindPart(ModelRoot(), path);
             thread.title = inside.Count > 0 ? string.Join(" and ", inside.Take(2)) + (inside.Count > 2 ? " and more" : "") : (t != null ? t.name : "Part");
@@ -312,9 +299,9 @@ namespace AuraSync.UI
             switch (type)
             {
                 case "rotate": return "spins";
-                case "slide":  return "slides";
-                case "hinge":  return "swings open";
-                default:       return "";
+                case "slide": return "slides";
+                case "hinge": return "swings open";
+                default: return "";
             }
         }
 
@@ -336,7 +323,7 @@ namespace AuraSync.UI
             catch { return "This model"; }
         }
 
-        // ── Asking ─────────────────────────────────────────────────────────────
+        // ── Asking ─────────────────────────────────────────────────────
 
         private void OnSendPressed() => Send(_input != null ? _input.text : "", addUserMessage: true);
 
@@ -351,12 +338,12 @@ namespace AuraSync.UI
                 _thread.waiting = false;
                 _thread.messages.Add(new ChatMessage { isError = true, text = "Stopped. Ask again whenever you like." });
                 _thread.suggestions = new List<string> { RetryChip };
+                PartChatStore.Save();
                 Render();
                 return;
             }
             if (chip == RetryChip)
             {
-                // Take the failure notice away and ask the same question again.
                 if (_thread.messages.Count > 0 && _thread.messages[_thread.messages.Count - 1].isError)
                     _thread.messages.RemoveAt(_thread.messages.Count - 1);
                 Send(_thread.lastQuestion, addUserMessage: false);
@@ -380,6 +367,7 @@ namespace AuraSync.UI
             thread.waiting = true;
             thread.pending = AiClient.Ensure().Ask(body, r => OnAnswer(thread, text, r));
             SharedStateBus.Publish(StateKeys.AiQuestion, thread.key ?? "", isLocal: true); // the heatmap counts it (Phase 10)
+            PartChatStore.Save();
 
             if (_input != null) _input.text = "";
             Render();
@@ -422,7 +410,6 @@ namespace AuraSync.UI
                 }
             }
 
-            // Earlier turns, without the facts card and without failures.
             body.history = thread.messages
                 .Where(m => !m.isIntro && !m.isError)
                 .Select(m => new AskTurn { role = m.fromUser ? "user" : "assistant", text = m.text })
@@ -448,22 +435,20 @@ namespace AuraSync.UI
                 thread.messages.Add(new ChatMessage { isError = true, text = r.error });
                 thread.suggestions = new List<string> { RetryChip };
             }
+            PartChatStore.Save();
 
-            // The answer lands in its conversation even if the chat was closed or moved to
-            // another part meanwhile; only redraw when that conversation is on screen.
-            if (this != null && IsOpen && _thread == thread) Render();
+            // The answer lands in its conversation even if the chat was closed or moved meanwhile.
+            if (this != null && IsOpen && _thread == thread && _tab == Tab.Ask) Render();
         }
 
-        // ── Sharing (Phase 3b) ─────────────────────────────────────────────────
+        // ── Sharing (Phase 3b) ─────────────────────────────────────────
 
-        /// <summary>Puts one answer, with the question that led to it, on everyone's screen.</summary>
         private void Share(ChatMessage msg)
         {
             ChatThread thread = _thread;
             if (thread == null || !Photon.Pun.PhotonNetwork.InRoom) return;
             if (SharedAnswers.IsUp(msg.sharedId, SpaceSceneManager.CurrentModelKey)) return;
 
-            // The question is the last thing the student asked before this answer.
             string question = "";
             for (int i = thread.messages.IndexOf(msg) - 1; i >= 0; i--)
                 if (thread.messages[i].fromUser) { question = thread.messages[i].text; break; }
@@ -473,13 +458,14 @@ namespace AuraSync.UI
 
             msg.sharedId = id;
             AiFeedbackLog.Shared(thread, msg);
+            PartChatStore.Save();
             Toast.Show("Shared with the room.");
             Render(keepScroll: true);
         }
 
         /// <summary>
         /// Opens the chat on a part ("" = the whole model) and, if a question is given, asks it at
-        /// once. The simulation's AI button uses this to explain the current assembly step.
+        /// once. The simulation's Explain button uses this.
         /// </summary>
         public void AskAbout(string path, string question)
         {
@@ -488,10 +474,7 @@ namespace AuraSync.UI
                 Send(question, addUserMessage: true);
         }
 
-        /// <summary>
-        /// ASK MORE on a shared answer: this chat, on that part, with the shared question and answer
-        /// added (once) so the AI's next reply follows on from them.
-        /// </summary>
+        /// <summary>ASK MORE on a shared answer: this chat, on that part, with the shared question and answer added once.</summary>
         public void OpenShared(SharedAnswer a)
         {
             if (a == null) return;
@@ -504,24 +487,37 @@ namespace AuraSync.UI
                 if (!string.IsNullOrEmpty(a.question))
                     _thread.messages.Add(new ChatMessage { fromUser = true, fromRoom = true, text = $"{who} asked: {a.question}" });
                 _thread.messages.Add(new ChatMessage { fromRoom = true, sharedId = a.id, text = a.answer, provider = "shared" });
+                PartChatStore.Save();
             }
             Render();
         }
 
         private void OnSharedAnswersChanged()
         {
-            // A SHARE button flips to SHARED (or back, when the answer is removed).
             if (IsOpen && _tab == Tab.Ask && _thread != null && !_thread.waiting) Render(keepScroll: true);
         }
 
         private void Rate(ChatMessage msg, int rating)
         {
-            msg.rating = msg.rating == rating ? 0 : rating; // tapping the same answer again clears it
+            msg.rating = msg.rating == rating ? 0 : rating;
             if (_thread != null) AiFeedbackLog.Rating(_thread, msg);
+            PartChatStore.Save();
             Render(keepScroll: true);
         }
 
-        // ── Isolate ────────────────────────────────────────────────────────────
+        /// <summary>⋯ → Clear chat: forgets this model's conversations and starts this one fresh.</summary>
+        private void ClearChats()
+        {
+            if (_menu != null) _menu.SetActive(false);
+            string key = SpaceSceneManager.CurrentModelKey;
+            if (string.IsNullOrEmpty(key)) return;
+            PartChatStore.Clear(key);
+            _thread = PartChatStore.Get(key, _path, () => NewThread(_path));
+            if (_tab == Tab.Ask) Render();
+            Toast.Show("Chats for this model cleared.");
+        }
+
+        // ── Isolate ────────────────────────────────────────────────────
 
         private void OnIsolatePressed()
         {
@@ -536,27 +532,37 @@ namespace AuraSync.UI
             bool canIsolate = _tab == Tab.Ask && !string.IsNullOrEmpty(_path) && ModelRaycaster.FindPart(ModelRoot(), _path) != null;
             _isolateButton.SetActive(canIsolate);
             if (canIsolate && _isolator != null)
-                _isolateLabel.text = _isolator.IsolatedPath == _path ? "SHOW ALL" : "ISOLATE";
+                _isolateLabel.text = _isolator.IsolatedPath == _path ? "Show all" : "Isolate";
         }
 
-        // ── Rendering the conversation ─────────────────────────────────────────
+        // ── Rendering the conversation ─────────────────────────────────
 
         private void Render(bool keepScroll = false)
         {
             if (_thread == null) return;
+            RefreshAbout();
 
-            if (_tab == Tab.Ask) _title.text = Esc(_thread.title);
-
-            for (int i = _messages.childCount - 1; i >= 0; i--) Destroy(_messages.GetChild(i).gameObject);
+            AuraKit.ClearChildren(_messages);
             foreach (ChatMessage m in _thread.messages) AddBubble(m);
-            if (_thread.waiting) AddBubble(new ChatMessage { text = "Thinking..." }, thinking: true);
+            if (_thread.waiting) AddBubble(new ChatMessage { text = "Thinking…" }, thinking: true);
 
-            for (int i = _chips.childCount - 1; i >= 0; i--) Destroy(_chips.GetChild(i).gameObject);
+            AuraKit.ClearChildren(_chips);
             IEnumerable<string> chips = _thread.waiting ? new[] { StopChip } : _thread.suggestions.Take(3);
             foreach (string chip in chips)
             {
                 string c = chip;
-                MakeButton(_chips, "Chip", c, ChipColor, () => OnChipPressed(c), height: 52f, fontSize: 19, alignLeft: true);
+                var row = AuraKit.Rect(_chips, "ChipRow");
+                AuraKit.HStack(row, 0f, 0, TextAnchor.MiddleRight).childForceExpandHeight = true;
+                AuraKit.Size(row, -1, 84f, -1, 0f);
+                var b = AuraKit.Pill(row, c, null, AuraTheme.A(AuraTheme.Ink, 0.85f), AuraTheme.Lavender,
+                                     () => OnChipPressed(c), 84f, AuraTheme.A(AuraTheme.Lavender, 0.6f));
+                var t = b.GetComponentInChildren<TextMeshProUGUI>();
+                if (t != null)
+                {
+                    t.fontSize = AuraTheme.SizeSmall - 2f;
+                    t.fontStyle = FontStyles.Normal;
+                    t.overflowMode = TextOverflowModes.Ellipsis;
+                }
             }
 
             _input.interactable = !_thread.waiting;
@@ -569,163 +575,87 @@ namespace AuraSync.UI
 
         private IEnumerator RestoreScroll(float position)
         {
-            yield return null; // the rebuilt list has its size by now
+            yield return null;
             Canvas.ForceUpdateCanvases();
             if (_scroll != null) _scroll.verticalNormalizedPosition = position;
         }
 
-        private void AddBubble(ChatMessage m, bool thinking = false)
-        {
-            // A row spanning the list, padded on one side so the bubble leans left (AI) or right (you).
-            var row = new GameObject(m.fromUser ? "You" : "AI", typeof(RectTransform));
-            row.transform.SetParent(_messages, false);
-            var hg = row.AddComponent<HorizontalLayoutGroup>();
-            hg.padding = m.fromUser ? new RectOffset(110, 0, 0, 0) : new RectOffset(0, 110, 0, 0);
-            hg.childControlWidth = true; hg.childControlHeight = true;
-            hg.childForceExpandWidth = true; hg.childForceExpandHeight = false;
-
-            Color color = m.fromUser ? UserBubble : m.isError ? ErrorBubble : m.isIntro ? IntroBubble : AiBubble;
-            var bubble = new GameObject("Bubble", typeof(RectTransform));
-            bubble.transform.SetParent(row.transform, false);
-            bubble.AddComponent<Image>().color = color;
-            var vg = bubble.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(16, 16, 12, 12);
-            vg.spacing = 8;
-            vg.childControlWidth = true; vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
-
-            // The facts card is built with rich-text markup on purpose; everything else is shown as typed.
-            string shown = m.isIntro ? m.text : Esc(m.text);
-            TextMeshProUGUI text = MakeText(bubble.transform, "Text", shown, 21, thinking ? DimText : Color.white);
-            text.richText = true;
-            text.enableWordWrapping = true;
-            if (thinking) text.fontStyle = FontStyles.Italic;
-
-            // "Helpful?" under real AI answers: the paper's helpfulness number. Plus SHARE in a room.
-            // Not under someone else's shared answer: it is theirs to rate, and already shared.
-            if (!m.fromUser && !m.isIntro && !m.isError && !thinking && !m.fromRoom)
-            {
-                var fb = new GameObject("Feedback", typeof(RectTransform));
-                fb.transform.SetParent(bubble.transform, false);
-                var fh = fb.AddComponent<HorizontalLayoutGroup>();
-                fh.spacing = 10; fh.childAlignment = TextAnchor.MiddleLeft;
-                fh.childControlWidth = true; fh.childControlHeight = true;
-                fh.childForceExpandWidth = false; fh.childForceExpandHeight = false;
-
-                TextMeshProUGUI q = MakeText(fb.transform, "Q", "Helpful?", 17, DimText);
-                q.enableWordWrapping = false;
-                ChatMessage msg = m;
-                MakeButton(fb.transform, "Yes", "Yes", msg.rating > 0 ? RatedColor : ButtonColor, () => Rate(msg, 1), height: 40f, fontSize: 17, minWidth: 70f);
-                MakeButton(fb.transform, "No", "No", msg.rating < 0 ? ErrorBubble : ButtonColor, () => Rate(msg, -1), height: 40f, fontSize: 17, minWidth: 70f);
-
-                if (Photon.Pun.PhotonNetwork.InRoom)
-                {
-                    bool up = SharedAnswers.IsUp(msg.sharedId, SpaceSceneManager.CurrentModelKey);
-                    Button share = MakeButton(fb.transform, "Share", up ? "SHARED" : "SHARE", up ? RatedColor : AskButtonColor,
-                                              () => Share(msg), height: 40f, fontSize: 17, minWidth: 96f);
-                    share.interactable = !up;
-                }
-            }
-        }
-
         private IEnumerator ScrollToEnd()
         {
-            yield return null; // let the layout settle first
+            yield return null;
             Canvas.ForceUpdateCanvases();
             if (_scroll != null) _scroll.verticalNormalizedPosition = 0f;
         }
 
-        // ── Placement ──────────────────────────────────────────────────────────
+        /// <summary>One message on its own bubble: yours on the right in lavender, the AI's on the left.</summary>
+        private void AddBubble(ChatMessage m, bool thinking = false)
+        {
+            var row = AuraKit.Rect(_messages, m.fromUser ? "You" : "AI");
+            var hg = AuraKit.HStack(row, 0f, 0, m.fromUser ? TextAnchor.UpperRight : TextAnchor.UpperLeft);
+            hg.padding = m.fromUser ? new RectOffset(120, 0, 0, 0) : new RectOffset(0, 70, 0, 0);
+            hg.childForceExpandWidth = false; // short messages hug their text; long ones wrap at the row's width
 
-        private void PlaceAskButton(bool modelShown)
+            Color fill, border; Color ink = AuraTheme.Text;
+            if (m.fromUser) { fill = AuraTheme.A(AuraTheme.Lavender, 0.94f); border = fill; ink = AuraTheme.Ink; }
+            else if (m.isError) { fill = AuraTheme.A(AuraTheme.Rose, 0.22f); border = AuraTheme.Rose; }
+            else if (m.isIntro) { fill = AuraTheme.A(AuraTheme.Ink, 0.88f); border = AuraTheme.A(AuraTheme.Lavender, 0.55f); }
+            else { fill = AuraTheme.A(AuraTheme.Indigo, 0.9f); border = AuraTheme.A(AuraTheme.Slate, 0.8f); }
+
+            var bubble = AuraKit.Box(row, "Bubble", fill, AuraTheme.Radius, true);
+            AuraKit.Border(bubble, border);
+            var v = AuraKit.VStack(bubble, 12f);
+            v.padding = new RectOffset(30, 30, 22, 22);
+
+            string shown = m.isIntro ? m.text : Esc(m.text);
+            var text = AuraKit.Text(bubble.transform, shown, AuraTheme.SizeSmall + 1f, thinking ? AuraTheme.TextDim : ink);
+            text.richText = true;
+            text.enableWordWrapping = true;
+            text.overflowMode = TextOverflowModes.Overflow;
+            if (thinking) text.fontStyle = FontStyles.Italic;
+
+            // Under real AI answers: Helpful? (the paper's number), and Share in a room.
+            if (!m.fromUser && !m.isIntro && !m.isError && !thinking && !m.fromRoom)
+            {
+                var fb = AuraKit.Rect(bubble.transform, "Feedback");
+                AuraKit.HStack(fb, 12f).childForceExpandHeight = true;
+                AuraKit.Size(fb, -1, 72f);
+                var q = AuraKit.Text(fb, "Helpful?", AuraTheme.SizeCaption - 2f, AuraTheme.TextDim);
+                q.enableWordWrapping = false;
+                ChatMessage msg = m;
+                AuraWidgets.Chip(fb, "Yes", null, msg.rating > 0, () => Rate(msg, 1), out _, 72f);
+                AuraWidgets.Chip(fb, "No", null, msg.rating < 0, () => Rate(msg, -1), out _, 72f);
+                if (Photon.Pun.PhotonNetwork.InRoom)
+                {
+                    bool up = SharedAnswers.IsUp(msg.sharedId, SpaceSceneManager.CurrentModelKey);
+                    AuraWidgets.Chip(fb, up ? "Shared" : "Share", AuraIcons.Room, up, () => Share(msg), out Button share, 72f);
+                    share.interactable = !up;
+                }
+            }
+            if (m.fromRoom && !m.fromUser)
+                AuraKit.Text(bubble.transform, "Shared in the room", AuraTheme.SizeCaption - 4f, AuraTheme.Lavender);
+        }
+
+        // ── The Ask AI chip beside a selected part ─────────────────────
+
+        private void PlaceAskChip(bool modelShown)
         {
             string path = CurrentSelection();
-            bool show = modelShown && !IsOpen && !string.IsNullOrEmpty(path) && TryGetScreenRect(path, out Rect r);
+            bool show = modelShown && !IsOpen && !string.IsNullOrEmpty(path) && TryGetScreenRect(path, out _);
             if (!show)
             {
-                if (_askButton.gameObject.activeSelf) _askButton.gameObject.SetActive(false);
+                if (_askChip.gameObject.activeSelf) _askChip.gameObject.SetActive(false);
                 return;
             }
 
             TryGetScreenRect(path, out Rect rect);
-            // Just right of the part's top-right corner, kept clear of the rail, badges and bars.
-            float x = Mathf.Clamp(rect.xMax + 12f, Screen.width * 0.16f, Screen.width * 0.70f);
-            float y = Mathf.Clamp(rect.yMax, Screen.height * 0.24f, Screen.height * 0.80f);
-            _askButton.position = new Vector3(x, y, 0f);
-            if (!_askButton.gameObject.activeSelf) _askButton.gameObject.SetActive(true);
-        }
-
-        private void PlacePanel()
-        {
-            bool landscape = Screen.width > Screen.height;
-            string focus = FocusPath;
-            bool havePart = !string.IsNullOrEmpty(focus) && TryGetScreenRect(focus, out _);
-            Rect part = default;
-            if (havePart) TryGetScreenRect(focus, out part);
-
-            // Which half: the one the part is not in. Hysteresis stops it flapping near the middle.
-            int want = _placement;
-            if (!havePart)
-            {
-                if (want < 0) want = 0;
-            }
-            else if (landscape)
-            {
-                float nx = part.center.x / Screen.width;
-                if (want < 0) want = nx < 0.5f ? 3 : 2;
-                else if (nx < 0.38f) want = 3;   // part on the left  -> panel right
-                else if (nx > 0.62f) want = 2;   // part on the right -> panel left
-            }
-            else
-            {
-                float ny = part.center.y / Screen.height;
-                if (want < 0) want = ny > 0.5f ? 0 : 1;
-                else if (ny > 0.62f) want = 0;   // part high -> panel low
-                else if (ny < 0.38f) want = 1;   // part low  -> panel high
-            }
-
-            if (want != _placement)
-            {
-                _placement = want;
-                switch (want)
-                {
-                    case 0: SetAnchors(_panelRt, 0.04f, 0.22f, 0.96f, 0.60f); break; // bottom (portrait)
-                    case 1: SetAnchors(_panelRt, 0.04f, 0.46f, 0.96f, 0.83f); break; // top (portrait)
-                    case 2: SetAnchors(_panelRt, 0.16f, 0.08f, 0.56f, 0.86f); break; // left (landscape)
-                    case 3: SetAnchors(_panelRt, 0.58f, 0.08f, 0.97f, 0.86f); break; // right (landscape)
-                }
-            }
-
-            DrawLeader(havePart, part);
-        }
-
-        private void DrawLeader(bool havePart, Rect part)
-        {
-            if (!havePart)
-            {
-                _leader.gameObject.SetActive(false);
-                return;
-            }
-
-            var corners = new Vector3[4];
-            _panelRt.GetWorldCorners(corners); // an overlay canvas's world space is screen pixels
-            var panel = Rect.MinMaxRect(corners[0].x, corners[0].y, corners[2].x, corners[2].y);
-
-            Vector2 target = part.center;
-            if (panel.Contains(target))
-            {
-                _leader.gameObject.SetActive(false);
-                return;
-            }
-
-            Vector2 from = new Vector2(Mathf.Clamp(target.x, panel.xMin, panel.xMax), Mathf.Clamp(target.y, panel.yMin, panel.yMax));
-            Vector2 d = target - from;
-            float scale = _canvas.scaleFactor > 0f ? _canvas.scaleFactor : 1f;
-
-            _leader.position = (from + target) * 0.5f;
-            _leader.sizeDelta = new Vector2(d.magnitude / scale, 4f);
-            _leader.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
-            _leader.gameObject.SetActive(true);
+            float k = AuraKit.CanvasScale;
+            float chipW = _askChip.rect.width * k;
+            // Right of the part's top-right corner, clear of the dock and the top and bottom rows.
+            float maxX = Screen.width - (AuraViewer.DockWidth + 40f) * k - chipW;
+            float x = Mathf.Clamp(rect.xMax + 16f * k, AuraViewer.Gutter * k, Mathf.Max(AuraViewer.Gutter * k, maxX));
+            float y = Mathf.Clamp(rect.yMax, (AuraViewer.BottomReserve + 60f) * k, Screen.height - (AuraViewer.TopReserve + 140f) * k);
+            _askChip.position = new Vector3(x, y, 0f);
+            if (!_askChip.gameObject.activeSelf) _askChip.gameObject.SetActive(true);
         }
 
         /// <summary>The part's outline on screen, in pixels. False when it is not drawn or behind the camera.</summary>
@@ -765,263 +695,145 @@ namespace AuraSync.UI
         private static Transform ModelRoot() =>
             SpaceInteractionController.Instance != null ? SpaceInteractionController.Instance.ModelRoot : null;
 
-        // ── Building the UI ────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void BuildUI()
         {
-            _canvas = gameObject.AddComponent<Canvas>();
-            _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 98; // above the parts drawer (97), below the room panel (100)
-            _canvasRt = (RectTransform)transform;
+            _safe = AuraViewer.CreateCanvas(transform, "AiCanvas", 98, out _canvas); // above the parts drawer (97)
 
-            CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
-
-            // The line from the panel to the part, drawn under the panel.
-            var leader = new GameObject("Leader", typeof(RectTransform));
-            leader.transform.SetParent(transform, false);
-            _leader = (RectTransform)leader.transform;
-            _leader.anchorMin = _leader.anchorMax = new Vector2(0.5f, 0.5f);
-            _leader.pivot = new Vector2(0.5f, 0.5f);
-            var li = leader.AddComponent<Image>();
-            li.color = LeaderColor;
-            li.raycastTarget = false;
-            leader.SetActive(false);
-
-            // The floating button beside the selected part.
-            Button ask = MakeButton(transform, "AskAI", "ASK AI", AskButtonColor, OnAskPressed, height: 64f, fontSize: 22, minWidth: 150f);
-            _askButton = (RectTransform)ask.transform;
-            _askButton.anchorMin = _askButton.anchorMax = Vector2.zero;
-            _askButton.pivot = new Vector2(0f, 0.5f);
-            _askButton.sizeDelta = new Vector2(170f, 64f);
-            ask.gameObject.SetActive(false);
+            // The Ask AI chip that floats beside a selected part (positioned in screen pixels).
+            var chip = AuraKit.Pill(_canvas.transform, "Ask AI", AuraIcons.AI, AuraTheme.Lavender, AuraTheme.Ink, OnAskPressed, 100f);
+            _askChip = (RectTransform)chip.transform;
+            _askChip.anchorMin = _askChip.anchorMax = Vector2.zero;
+            _askChip.pivot = new Vector2(0f, 0.5f);
+            _askChip.sizeDelta = new Vector2(250f, 100f);
+            chip.gameObject.SetActive(false);
 
             BuildPanel();
         }
 
         private void BuildPanel()
         {
-            _panel = new GameObject("ChatPanel", typeof(RectTransform));
-            _panel.transform.SetParent(transform, false);
-            _panelRt = (RectTransform)_panel.transform;
-            SetAnchors(_panelRt, 0.04f, 0.22f, 0.96f, 0.60f);
-            _panel.AddComponent<Image>().color = PanelColor;
-            _panel.AddComponent<TouchBlocker>(); // the model must not turn under the chat
+            _panelRt = AuraKit.Rect(_safe, "ChatPanel");
+            _panelRt.anchorMin = new Vector2(1, 0);
+            _panelRt.anchorMax = new Vector2(1, 1);
+            _panelRt.pivot = new Vector2(1, 0.5f);
+            _panelRt.offsetMin = new Vector2(-860f, AuraViewer.BottomReserve);
+            _panelRt.offsetMax = new Vector2(0, -AuraViewer.TopReserve + 30f);
+            _panelRt.gameObject.AddComponent<ChatPanelWidth>();
 
-            var vg = _panel.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(14, 14, 12, 12);
-            vg.spacing = 10;
-            vg.childControlWidth = true; vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            // The fade: clear towards the model, darker at the screen edge. It takes no touches, so
+            // a drag on the clear part still turns the model.
+            var fade = AuraKit.Rect(_panelRt, "Fade").gameObject.AddComponent<Image>();
+            fade.sprite = AuraSprites.HFade;
+            fade.color = AuraTheme.A(AuraTheme.Ink, 0.86f);
+            fade.raycastTarget = false;
+            AuraKit.Fill(fade.rectTransform, -60, -AuraViewer.BottomReserve, -40, -60);
+            fade.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
 
-            // Header: title, isolate, close.
-            var header = new GameObject("Header", typeof(RectTransform));
-            header.transform.SetParent(_panel.transform, false);
-            AddLayout(header, height: 58f);
-            var hg = header.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing = 10; hg.childAlignment = TextAnchor.MiddleLeft;
-            hg.childControlWidth = true; hg.childControlHeight = true;
-            hg.childForceExpandWidth = false; hg.childForceExpandHeight = true;
+            var v = AuraKit.VStack(_panelRt, 18f);
+            v.padding = new RectOffset(70, 36, 6, 6);
+            v.childForceExpandHeight = false;
 
-            Button findTab = MakeButton(header.transform, "FindTab", "FIND", TabOff, OpenFind, height: 52f, fontSize: 18, minWidth: 96f);
-            _findTabImage = findTab.GetComponent<Image>();
-            Button askTab = MakeButton(header.transform, "AskTab", "ASK", TabOn, OnAskTabPressed, height: 52f, fontSize: 18, minWidth: 96f);
-            _askTabImage = askTab.GetComponent<Image>();
+            // Typing (Ask or Find): the input row rises above the phone keyboard and the chat
+            // shrinks, so what is typed is always in view, in the box itself.
+            var kb = _panelRt.gameObject.AddComponent<KeyboardPadding>();
+            kb.group = v;
+            kb.basePadding = 6;
 
-            _title = MakeText(header.transform, "Title", "", 25, Color.white);
-            _title.fontStyle = FontStyles.Bold;
-            _title.enableWordWrapping = false;
-            _title.overflowMode = TextOverflowModes.Ellipsis;
-            _title.alignment = TextAlignmentOptions.MidlineLeft;
-            AddLayout(_title.gameObject, flexWidth: 1f);
+            // Header: Find / Ask, and the ⋯ menu.
+            // Every fixed row says flexibleHeight 0: a LayoutElement left at -1 passes up its
+            // children's flexible height (the segments are flexible), and the rows then shared the
+            // panel's spare height with the chat, growing huge.
+            var header = AuraKit.Rect(_panelRt, "Header");
+            AuraKit.HStack(header, 14f).childForceExpandHeight = false;
+            AuraKit.Size(header, -1, 100f, -1, 0f);
+            var segHost = AuraKit.Rect(header, "Tabs");
+            AuraKit.Size(segHost, 340f, 100f, 0f, 0f);
+            AuraKit.VStack(segHost, 0f);
+            _setTab = AuraWidgets.Segmented(segHost, new[] { "Find", "Ask" }, 1, OnTabChanged);
+            var track = segHost.GetChild(0).GetComponent<LayoutElement>();
+            if (track != null) { track.minHeight = track.preferredHeight = 100f; track.flexibleHeight = 0f; }
+            AuraKit.Flex(AuraKit.Rect(header, "Spacer"));
+            AuraWidgets.Round(header, AuraIcons.More, 96f, false, () => { if (_menu != null) _menu.SetActive(!_menu.activeSelf); }, out _);
 
-            Button iso = MakeButton(header.transform, "Isolate", "ISOLATE", ButtonColor, OnIsolatePressed, height: 52f, fontSize: 18, minWidth: 130f);
+            // About · part, and Isolate.
+            var aboutRow = AuraKit.Rect(_panelRt, "About");
+            AuraKit.HStack(aboutRow, 12f);
+            AuraKit.Size(aboutRow, -1, 84f, -1, 0f);
+            _about = AuraKit.Text(aboutRow, "", AuraTheme.SizeSmall, AuraTheme.Text, AuraWeight.SemiBold);
+            _about.richText = true;
+            _about.enableWordWrapping = false;
+            AuraKit.Size(_about, 0f, -1, 1f);
+            AuraWidgets.Chip(aboutRow, "Isolate", AuraIcons.Target, false, OnIsolatePressed, out Button iso, 84f);
             _isolateButton = iso.gameObject;
             _isolateLabel = iso.GetComponentInChildren<TextMeshProUGUI>();
-            MakeButton(header.transform, "Close", "X", new Color(0.45f, 0.20f, 0.22f, 1f), Close, height: 52f, fontSize: 22, minWidth: 56f);
 
-            _askPage = new GameObject("AskPage", typeof(RectTransform));
-            _askPage.transform.SetParent(_panel.transform, false);
-            AddLayout(_askPage, height: 120f, flexHeight: 1f);
-            var ap = _askPage.AddComponent<VerticalLayoutGroup>();
-            ap.spacing = 10;
-            ap.childControlWidth = true; ap.childControlHeight = true;
-            ap.childForceExpandWidth = true; ap.childForceExpandHeight = false;
+            BuildMenu();
 
-            BuildMessageList(_askPage.transform);
+            // Ask page.
+            var ask = AuraKit.Rect(_panelRt, "AskPage");
+            AuraKit.Size(ask, -1, 200f, -1, 1f);
+            AuraKit.VStack(ask, 14f).childForceExpandHeight = false;
+            _askPage = ask.gameObject;
 
-            // Suggested questions.
-            var chips = new GameObject("Suggestions", typeof(RectTransform));
-            chips.transform.SetParent(_askPage.transform, false);
-            _chips = (RectTransform)chips.transform;
-            var cg = chips.AddComponent<VerticalLayoutGroup>();
-            cg.spacing = 6;
-            cg.childControlWidth = true; cg.childControlHeight = true;
-            cg.childForceExpandWidth = true; cg.childForceExpandHeight = false;
+            var list = AuraKit.Rect(ask, "Messages");
+            AuraKit.Size(list, -1, 200f, -1, 1f);
+            _messages = AuraWidgets.Scroll(list, out _scroll, 16f);
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
 
-            // Your own question.
-            var inputRow = new GameObject("InputRow", typeof(RectTransform));
-            inputRow.transform.SetParent(_askPage.transform, false);
-            AddLayout(inputRow, height: 60f);
-            var ig = inputRow.AddComponent<HorizontalLayoutGroup>();
-            ig.spacing = 10;
-            ig.childControlWidth = true; ig.childControlHeight = true;
-            ig.childForceExpandWidth = false; ig.childForceExpandHeight = true;
+            _chips = AuraKit.Rect(ask, "Suggestions");
+            AuraKit.VStack(_chips, 10f);
+            AuraKit.Size(_chips, -1, -1, -1, 0f);
 
-            _input = BuildInput(inputRow.transform);
-            BuildAskMic(inputRow.transform);
-            _sendButton = MakeButton(inputRow.transform, "Send", "SEND", AskButtonColor, OnSendPressed, height: 60f, fontSize: 20, minWidth: 110f);
+            var inputRow = AuraKit.Rect(ask, "InputRow");
+            AuraKit.HStack(inputRow, 12f).childForceExpandHeight = false;
+            AuraKit.Size(inputRow, -1, 112f, -1, 0f);
+            _input = AuraWidgets.Input(inputRow, AskHint, "", false, 112f, MaxQuestionChars);
+            AuraKit.Flex(_input);
+            _input.onSubmit.AddListener(_ => OnSendPressed());
+            BuildAskMic(inputRow);
+            _sendButton = AuraWidgets.Round(inputRow, AuraIcons.Send, 104f, true, OnSendPressed, out _);
 
-            TextMeshProUGUI note = MakeText(_askPage.transform, "Note",
-                "AI answers can be wrong. Questions are sent to Google and Groq: don't type personal details.", 15, DimText);
+            var note = AuraKit.Text(ask, "AI answers can be wrong. Questions go to Google and Groq: don't type personal details.",
+                                    AuraTheme.SizeCaption - 5f, AuraTheme.A(AuraTheme.TextDim, 0.8f));
             note.enableWordWrapping = true;
 
-            BuildFindPage(_panel.transform);
-            SetTab(Tab.Ask);
+            BuildFindPage(_panelRt);
+            _findPage.SetActive(false);
 
-            _panel.SetActive(false);
+            var y = _panelRt.anchoredPosition.y;
+            _panel = AuraSlidePanel.Attach(_panelRt, new Vector2(0, y), new Vector2(980f, y));
         }
 
-        private void BuildMessageList(Transform parent)
+        private void BuildMenu()
         {
-            var scrollGo = new GameObject("Messages", typeof(RectTransform));
-            scrollGo.transform.SetParent(parent, false);
-            AddLayout(scrollGo, height: 120f, flexHeight: 1f);
-
-            _scroll = scrollGo.AddComponent<ScrollRect>();
-            _scroll.horizontal = false;
-            _scroll.vertical = true;
-            _scroll.movementType = ScrollRect.MovementType.Clamped;
-            _scroll.scrollSensitivity = 28f;
-
-            var viewport = new GameObject("Viewport", typeof(RectTransform));
-            viewport.transform.SetParent(scrollGo.transform, false);
-            var vrt = (RectTransform)viewport.transform;
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one;
-            vrt.sizeDelta = Vector2.zero; vrt.pivot = new Vector2(0f, 1f);
-            viewport.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.01f); // catches the scroll drag
-            viewport.AddComponent<RectMask2D>();
-
-            var content = new GameObject("Content", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            _messages = (RectTransform)content.transform;
-            _messages.anchorMin = new Vector2(0f, 1f);
-            _messages.anchorMax = new Vector2(1f, 1f);
-            _messages.pivot = new Vector2(0f, 1f);
-            _messages.sizeDelta = Vector2.zero;
-
-            var vg = content.AddComponent<VerticalLayoutGroup>();
-            vg.spacing = 10;
-            vg.padding = new RectOffset(0, 0, 4, 4);
-            vg.childControlWidth = true; vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
-            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            _scroll.viewport = vrt;
-            _scroll.content = _messages;
-        }
-
-        private TMP_InputField BuildInput(Transform parent) =>
-            BuildInputField(parent, "Ask your own question...", MaxQuestionChars, _ => OnSendPressed());
-
-        private TMP_InputField BuildInputField(Transform parent, string hint, int limit, UnityEngine.Events.UnityAction<string> onSubmit)
-        {
-            var go = new GameObject("Question", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            go.SetActive(false); // TMP_InputField wires itself up in OnEnable: give it its parts first
-            AddLayout(go, flexWidth: 1f);
-            go.AddComponent<Image>().color = new Color(0.03f, 0.04f, 0.07f, 1f);
-
-            var area = new GameObject("TextArea", typeof(RectTransform));
-            area.transform.SetParent(go.transform, false);
-            var art = (RectTransform)area.transform;
-            art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-            art.offsetMin = new Vector2(12f, 4f); art.offsetMax = new Vector2(-12f, -4f);
-            area.AddComponent<RectMask2D>();
-
-            TextMeshProUGUI placeholder = MakeText(area.transform, "Placeholder", hint, 20, new Color(1f, 1f, 1f, 0.32f));
-            Stretch(placeholder.rectTransform);
-            placeholder.alignment = TextAlignmentOptions.MidlineLeft;
-            TextMeshProUGUI text = MakeText(area.transform, "Text", "", 20, Color.white);
-            Stretch(text.rectTransform);
-            text.alignment = TextAlignmentOptions.MidlineLeft;
-
-            var field = go.AddComponent<TMP_InputField>();
-            field.textViewport = art;
-            field.textComponent = text;
-            field.placeholder = placeholder;
-            field.lineType = TMP_InputField.LineType.SingleLine;
-            field.characterLimit = limit;
-            field.onSubmit.AddListener(onSubmit);
-
-            go.SetActive(true);
-            return field;
-        }
-
-        // ── Small UI helpers ───────────────────────────────────────────────────
-
-        private static Button MakeButton(Transform parent, string name, string label, Color color, UnityEngine.Events.UnityAction onClick,
-                                         float height, int fontSize, float minWidth = 0f, bool alignLeft = false)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var btn = go.AddComponent<Button>();
-            btn.targetGraphic = img;
-            btn.onClick.AddListener(onClick);
-            AddLayout(go, height: height, minWidth: minWidth);
-
-            TextMeshProUGUI t = MakeText(go.transform, "Label", label, fontSize, Color.white);
-            Stretch(t.rectTransform, alignLeft ? 14f : 6f);
-            t.alignment = alignLeft ? TextAlignmentOptions.MidlineLeft : TextAlignmentOptions.Center;
-            t.fontStyle = alignLeft ? FontStyles.Normal : FontStyles.Bold;
-            t.enableWordWrapping = false;
-            t.overflowMode = TextOverflowModes.Ellipsis;
-            return btn;
-        }
-
-        private static TextMeshProUGUI MakeText(Transform parent, string name, string text, float size, Color color)
-        {
-            var go = new GameObject(name, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.text = text;
-            t.fontSize = size;
-            t.color = color;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static void AddLayout(GameObject go, float height = 0f, float flexHeight = 0f, float flexWidth = 0f, float minWidth = 0f)
-        {
-            var le = go.GetComponent<LayoutElement>() ?? go.AddComponent<LayoutElement>();
-            if (height > 0f) { le.minHeight = height; le.preferredHeight = height; }
-            // A fixed-height row must not grow. A row laid out to fill its own height tells its
-            // parent it can stretch, and the panel then hands it spare space: that is what made the
-            // header four times too tall and squeezed the conversation.
-            if (height > 0f && flexHeight <= 0f) le.flexibleHeight = 0f;
-            if (flexHeight > 0f) le.flexibleHeight = flexHeight;
-            if (flexWidth > 0f) le.flexibleWidth = flexWidth;
-            if (minWidth > 0f) { le.minWidth = minWidth; le.preferredWidth = minWidth; }
-        }
-
-        private static void Stretch(RectTransform rt, float inset = 0f)
-        {
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
-            rt.offsetMin = new Vector2(inset, 0f); rt.offsetMax = new Vector2(-inset, 0f);
-        }
-
-        private static void SetAnchors(RectTransform rt, float x0, float y0, float x1, float y1)
-        {
-            rt.anchorMin = new Vector2(x0, y0); rt.anchorMax = new Vector2(x1, y1);
-            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+            var menu = AuraKit.Box(_panelRt, "Menu", AuraTheme.A(AuraTheme.Indigo, 0.98f), AuraTheme.Radius, true);
+            AuraKit.Border(menu, AuraTheme.Slate);
+            menu.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            AuraKit.Pin(menu.rectTransform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-36, -120), new Vector2(520, 150));
+            var mv = AuraKit.VStack(menu, 0f, 20);
+            mv.childAlignment = TextAnchor.MiddleCenter;
+            AuraKit.Pill(menu.transform, "Clear chat for this model", AuraIcons.Trash, AuraTheme.Ink, AuraTheme.Rose, ClearChats,
+                         AuraTheme.MinTouch, AuraTheme.Rose);
+            _menu = menu.gameObject;
+            _menu.SetActive(false);
         }
 
         /// <summary>Text from the knowledge file shown inside rich-text markup: stop it being read as tags.</summary>
         private static string Esc(string s) => string.IsNullOrEmpty(s) ? "" : s.Replace("<", "<noparse><</noparse>");
+    }
+
+    /// <summary>The AI panel takes most of the width: wide enough for comfortable bubbles.</summary>
+    public class ChatPanelWidth : MonoBehaviour
+    {
+        void LateUpdate()
+        {
+            var rt = (RectTransform)transform;
+            var parent = rt.parent as RectTransform;
+            if (parent == null) return;
+            float w = Mathf.Clamp(parent.rect.width * 0.82f, 720f, 980f);
+            if (!Mathf.Approximately(rt.sizeDelta.x, w)) rt.sizeDelta = new Vector2(w, rt.sizeDelta.y);
+        }
     }
 }

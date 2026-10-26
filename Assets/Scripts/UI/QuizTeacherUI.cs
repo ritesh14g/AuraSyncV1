@@ -12,41 +12,46 @@ using AuraSync.Space;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// Settings → AI QUIZ, the teacher's side (V3 Phase 11). One panel, four pages:
+    /// Analysis → Ask quiz, the teacher's side (V3 Phase 11). A bottom sheet, as tall as what it
+    /// shows (it scrolls once it passes about half the screen), in four steps:
     ///
     ///   SETUP     about the whole model or the selected part; 5 / 10 / 15 questions; easy /
-    ///             medium / hard; time limit none / 2 / 5 / 10 min; GENERATE.
-    ///   REVIEW    every question with its options (the right one marked): EDIT, NEW ONE (ask the
-    ///             AI for a replacement), DELETE; then SEND TO N STUDENTS.
-    ///   LIVE      the clock and each student's progress; END QUIZ.
-    ///   RESULTS   the class average and each score; OPEN REPORT, NEW QUIZ.
+    ///             medium / hard; time limit none / 2 / 5 / 10 min. [Generate]
+    ///   WORKING   while the AI writes; Back cancels.
+    ///   REVIEW    every question with its options (the right one marked): Edit, New one (ask the
+    ///             AI for a replacement), Delete; Start over (top). [Send to N]
+    ///   LIVE      the clock and each student's progress. [End quiz]. Then the class average and
+    ///             each score; New quiz (top). [Open report]
     ///
-    /// The panel can be closed while a quiz runs (Back); AI QUIZ opens it on the live page.
+    /// The main action is the wide button at the bottom of the sheet. The sheet can be closed while
+    /// a quiz runs (Back or ✕); Ask quiz opens it on the live step.
     /// </summary>
     public class QuizTeacherUI : MonoBehaviour
     {
         public static QuizTeacherUI Instance { get; private set; }
 
+        private const string PanelId = "quiz";
         private const string NavId = "quiz-teacher";
         private const string EditNavId = "quiz-edit";
-        private static readonly Color PanelColor  = new Color(0.07f, 0.09f, 0.13f, 0.98f);
-        private static readonly Color ButtonColor = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color OnColor     = new Color(0.36f, 0.30f, 0.85f, 1f);
-        private static readonly Color GoColor     = new Color(0.14f, 0.50f, 0.30f, 1f);
-        private static readonly Color DangerColor = new Color(0.55f, 0.18f, 0.18f, 1f);
 
         private static readonly int[] Counts = { 5, 10, 15 };
         private static readonly string[] Difficulties = { "easy", "medium", "hard" };
         private static readonly int[] Limits = { 0, 120, 300, 600 };
 
-        private GameObject _panel, _setup, _working, _review, _live;
-        private TextMeshProUGUI _title, _status, _workingText, _reviewHead, _liveText;
-        private RectTransform _reviewRows;
-        private Button _sendBtn, _selectedBtn;
-        private TextMeshProUGUI _selectedText, _sendText;
-        private readonly List<Image> _scopeImgs = new List<Image>(), _countImgs = new List<Image>(),
-                                     _diffImgs = new List<Image>(), _limitImgs = new List<Image>();
-        private GameObject _liveEnd, _liveReport, _liveNew;
+        private AuraSlidePanel _sheet;
+        private TextMeshProUGUI _title, _subtitle;
+        private ScrollRect _scroll;
+        private Button _primary;
+        private Image _primaryFill;
+        private TextMeshProUGUI _primaryLabel;
+
+        private GameObject _setup, _working, _review, _live;
+        private TextMeshProUGUI _status, _workingText, _reviewHead, _liveText;
+        private RectTransform _reviewRows, _liveRows;
+        private System.Action<int> _setScope, _setCount, _setDiff, _setLimit;
+        private GameObject _scopeRow;
+        private TextMeshProUGUI _scopeNote;
+        private GameObject _startOver, _newQuiz;
 
         private string _scopePath = "";
         private int _count = 1, _diff = 1, _limit = 0; // indices
@@ -60,9 +65,14 @@ namespace AuraSync.UI
         private GameObject _editModal;
         private TMP_InputField _editQ;
         private readonly TMP_InputField[] _editO = new TMP_InputField[4];
-        private readonly Image[] _editRight = new Image[4];
+        private System.Action<int> _setRight;
         private int _editIndex, _editAnswer;
         private float _nextLive;
+        private string _liveSig;
+
+        private string _selectedPath = "";
+
+        public bool IsOpen => _sheet != null && _sheet.IsShown;
 
         void Awake()
         {
@@ -84,73 +94,109 @@ namespace AuraSync.UI
         public void Open()
         {
             if (!QuizSession.LocalIsTeacher) { Toast.Show("The AI quiz needs a room: you send it to the students in it."); return; }
-            if (!_panel.activeSelf) PanelNavigator.Push(NavId, this, Close);
-            _panel.SetActive(true);
+            if (!IsOpen)
+            {
+                ViewerPanels.Opened(PanelId, Close);
+                PanelNavigator.Push(NavId, this, OnBack);
+            }
 
             ModelPartSelector sel = ModelPartSelector.Instance;
             string selected = sel != null ? sel.OwnPath : "";
-            _selectedBtn.gameObject.SetActive(!string.IsNullOrEmpty(selected));
-            _selectedText.text = string.IsNullOrEmpty(selected) ? "" : "SELECTED: " + Esc(QuizGenerator.ScopeLabel(selected));
-            if (string.IsNullOrEmpty(selected) || (_scopePath.Length > 0 && _scopePath != selected)) _scopePath = "";
             _selectedPath = selected;
+            _scopeNote.text = string.IsNullOrEmpty(selected) ? "Select a part on the model to quiz on just that part."
+                                                             : "Selected part: " + Esc(QuizGenerator.ScopeLabel(selected));
+            if (string.IsNullOrEmpty(selected) || (_scopePath.Length > 0 && _scopePath != selected)) _scopePath = "";
             RefreshPage();
+            _sheet.Show();
         }
-
-        private string _selectedPath = "";
 
         public void Close()
         {
-            if (_panel == null || !_panel.activeSelf) return;
-            _panel.SetActive(false);
+            if (!IsOpen) return;
+            _sheet.Hide();
+            ViewerPanels.Closed(PanelId);
             PanelNavigator.Remove(NavId);
+        }
+
+        /// <summary>Back: cancels writing, otherwise closes (a running quiz carries on).</summary>
+        private void OnBack()
+        {
+            if (_pending != null) { CancelGenerate(); PanelNavigator.Push(NavId, this, OnBack); return; }
+            Close();
         }
 
         void Update()
         {
-            if (!_panel.activeSelf) return;
+            if (!IsOpen) return;
             if (!PhotonNetwork.InRoom || string.IsNullOrEmpty(SpaceSceneManager.CurrentModelKey)) { Close(); return; }
             if (_live.activeSelf && Time.unscaledTime >= _nextLive) { _nextLive = Time.unscaledTime + 0.5f; RefreshLive(); }
         }
 
-        // ── Pages ──────────────────────────────────────────────────────────────
+        // ── Pages ──────────────────────────────────────────────────────
 
         private void ShowPage(GameObject page)
         {
+            bool changed = !page.activeSelf;
             foreach (GameObject p in new[] { _setup, _working, _review, _live }) p.SetActive(p == page);
+            _startOver.SetActive(page == _review);
+            _newQuiz.SetActive(false);
+            if (changed) { _liveSig = null; if (_scroll != null) _scroll.verticalNormalizedPosition = 1f; }
         }
 
         private void RefreshPage()
         {
-            if (_panel == null) return;
+            if (_sheet == null) return;
             QuizSession s = QuizSession.Instance;
             if (s != null && s.Hosting != null) { ShowPage(_live); RefreshLive(); return; }
-            if (_pending != null) { ShowPage(_working); return; }
+            if (_pending != null)
+            {
+                ShowPage(_working);
+                SetHead("Writing the quiz", "");
+                SetPrimary(null, null);
+                return;
+            }
             if (_drafts.Count > 0) { ShowPage(_review); RenderReview(); return; }
             ShowPage(_setup);
             RefreshSetup();
         }
 
+        private void SetHead(string title, string sub)
+        {
+            _title.text = title;
+            _subtitle.text = sub;
+            _subtitle.gameObject.SetActive(!string.IsNullOrEmpty(sub));
+        }
+
+        /// <summary>The wide button at the bottom of the sheet (null hides it).</summary>
+        private void SetPrimary(string label, System.Action onTap, bool enabled = true, bool danger = false)
+        {
+            _primary.onClick.RemoveAllListeners();
+            if (string.IsNullOrEmpty(label)) { _primary.gameObject.SetActive(false); return; }
+            _primary.gameObject.SetActive(true);
+            _primaryLabel.text = label;
+            _primary.interactable = enabled;
+            _primaryFill.color = !enabled ? AuraTheme.A(AuraTheme.Slate, 0.45f) : danger ? AuraTheme.Rose : AuraTheme.Lavender;
+            if (onTap != null) _primary.onClick.AddListener(() => onTap());
+        }
+
         private void RefreshSetup()
         {
-            _title.text = "AI QUIZ";
-            Mark(_scopeImgs, _scopePath.Length == 0 ? 0 : 1);
-            Mark(_countImgs, _count);
-            Mark(_diffImgs, _diff);
-            Mark(_limitImgs, _limit);
+            SetHead("AI quiz", "Multiple-choice questions from the model's part facts");
+            _setScope(_scopePath.Length == 0 ? 0 : 1);
+            _scopeRow.SetActive(!string.IsNullOrEmpty(_selectedPath));
+            _setCount(_count);
+            _setDiff(_diff);
+            _setLimit(_limit);
+            SetPrimary("Generate", Generate);
         }
 
-        private static void Mark(List<Image> imgs, int on)
-        {
-            for (int i = 0; i < imgs.Count; i++) imgs[i].color = i == on ? OnColor : ButtonColor;
-        }
-
-        // ── Generating ─────────────────────────────────────────────────────────
+        // ── Generating ─────────────────────────────────────────────────
 
         private void Generate()
         {
             if (!AiClient.Ensure().IsConfigured) { _status.text = "The AI server is not set up on this build."; return; }
             int n = Counts[_count];
-            _workingText.text = $"Writing {n} questions about {Esc(QuizGenerator.ScopeLabel(_scopePath))}...\nThis takes up to a minute.";
+            _workingText.text = $"Writing {n} questions about {Esc(QuizGenerator.ScopeLabel(_scopePath))}…\nThis takes up to a minute. Back cancels.";
             _status.text = "";
             _pending = QuizGenerator.Generate(_scopePath, n, Difficulties[_diff], r =>
             {
@@ -173,12 +219,12 @@ namespace AuraSync.UI
             RefreshPage();
         }
 
-        // ── Review ─────────────────────────────────────────────────────────────
+        // ── Review ─────────────────────────────────────────────────────
 
         private void RenderReview()
         {
-            _title.text = "REVIEW";
-            for (int i = _reviewRows.childCount - 1; i >= 0; i--) Destroy(_reviewRows.GetChild(i).gameObject);
+            SetHead("Review", "");
+            AuraKit.ClearChildren(_reviewRows);
             _reviewHead.text = $"{_drafts.Count} question(s) about {Esc(QuizGenerator.ScopeLabel(_scopePath))}, {Difficulties[_diff]}" +
                                (Limits[_limit] > 0 ? $", {Limits[_limit] / 60} min" : ", no time limit") + ". Check them, then send.";
 
@@ -186,34 +232,39 @@ namespace AuraSync.UI
             {
                 int idx = i;
                 Draft d = _drafts[i];
-                var row = UIBits.Column(_reviewRows, 6f);
-                row.AddComponent<Image>().color = new Color(1f, 1f, 1f, 0.06f);
-                row.GetComponent<VerticalLayoutGroup>().padding = new RectOffset(12, 12, 10, 10);
+                var card = AuraKit.Box(_reviewRows, "Question", AuraTheme.Ink, AuraTheme.Radius - 6f);
+                AuraKit.Border(card, AuraTheme.A(AuraTheme.Slate, 0.8f), AuraTheme.Radius - 6f);
+                var v = AuraKit.VStack(card, 10f);
+                v.padding = new RectOffset(26, 26, 20, 20);
 
                 var sb = new StringBuilder();
                 sb.Append($"<b>{i + 1}. {Esc(d.q.question)}</b>");
-                if (d.edited) sb.Append("  <color=#FFD27A>(edited)</color>");
-                if (d.regenerated) sb.Append("  <color=#9FD7FF>(new)</color>");
+                if (d.edited) sb.Append("  <color=#9894C4>(edited)</color>");
+                if (d.regenerated) sb.Append("  <color=#9894C4>(new)</color>");
                 for (int k = 0; k < d.q.options.Length; k++)
                     sb.Append(k == d.q.answer
-                        ? $"\n<color=#7CF2A0>{(char)('A' + k)}. {Esc(d.q.options[k])}   (right)</color>"
-                        : $"\n{(char)('A' + k)}. {Esc(d.q.options[k])}");
+                        ? $"\n<color=#6FC2A0>{(char)('A' + k)}. {Esc(d.q.options[k])}   ✓</color>"
+                        : $"\n<color=#A9A8CC>{(char)('A' + k)}.</color> {Esc(d.q.options[k])}");
                 string part = string.IsNullOrEmpty(d.q.partPath) ? "Whole model" : QuizGenerator.ScopeLabel(d.q.partPath);
-                sb.Append($"\n<color=#FFFFFF88>Part: {Esc(part)}</color>");
-                var t = UIBits.Text(row.transform, sb.ToString(), 19f, Color.white);
+                sb.Append($"\n<size=85%><color=#A9A8CC>Part: {Esc(part)}</color></size>");
+                var t = AuraKit.Text(card.transform, sb.ToString(), AuraTheme.SizeSmall, AuraTheme.Text);
                 t.enableWordWrapping = true;
                 t.richText = true;
 
-                var btns = UIBits.Row(row.transform, 50f);
-                UIBits.Button(btns.transform, "EDIT", ButtonColor, () => OpenEdit(idx), 100f);
-                UIBits.Button(btns.transform, d.busy ? "WRITING..." : "NEW ONE", ButtonColor, () => Regenerate(idx), 140f);
-                UIBits.Flex(new GameObject("Space", typeof(RectTransform)).Also(g => g.transform.SetParent(btns.transform, false)));
-                UIBits.Button(btns.transform, "DELETE", DangerColor, () => DeleteDraft(idx), 110f);
+                var btns = AuraKit.Rect(card.transform, "Buttons");
+                AuraKit.HStack(btns, 12f).childForceExpandHeight = true;
+                AuraKit.Size(btns, -1, 84f);
+                AuraWidgets.Chip(btns, "Edit", AuraIcons.Edit, false, () => OpenEdit(idx), out _, 84f);
+                AuraWidgets.Chip(btns, d.busy ? "Writing…" : "New one", AuraIcons.AI, true, () => Regenerate(idx), out _, 84f);
+                AuraKit.Flex(AuraKit.Rect(btns, "Space"));
+                AuraWidgets.Chip(btns, "Delete", AuraIcons.Trash, false, () => DeleteDraft(idx), out Button del, 84f);
+                var dt = del.GetComponentInChildren<TextMeshProUGUI>();
+                if (dt != null) dt.color = AuraTheme.Rose;
             }
 
             int students = PhotonNetwork.InRoom ? PhotonNetwork.CurrentRoom.PlayerCount - 1 : 0;
-            _sendText.text = students > 0 ? $"SEND TO {students} STUDENT{(students == 1 ? "" : "S")}" : "NOBODY TO SEND TO";
-            _sendBtn.interactable = students > 0 && _drafts.Count > 0 && !_drafts.Any(d => d.busy);
+            bool can = students > 0 && _drafts.Count > 0 && !_drafts.Any(d => d.busy);
+            SetPrimary(students > 0 ? $"Send to {students} student{(students == 1 ? "" : "s")}" : "Nobody to send to", Send, can);
         }
 
         private void DeleteDraft(int i)
@@ -259,7 +310,7 @@ namespace AuraSync.UI
             RefreshPage();
         }
 
-        // ── Live / results ─────────────────────────────────────────────────────
+        // ── Live / results ─────────────────────────────────────────────
 
         private void RefreshLive()
         {
@@ -268,31 +319,50 @@ namespace AuraSync.UI
             if (h == null) return;
 
             int n = h.full.Count;
-            var sb = new StringBuilder();
             if (h.state.Running)
             {
                 float left = QuizSession.SecondsLeft(h.state);
-                _title.text = "QUIZ RUNNING";
-                sb.Append($"{n} question(s)" + (left >= 0 ? $"  ·  {(int)left / 60}:{(int)left % 60:00} left" : "  ·  no time limit") + "\n\n");
-                foreach (var st in h.students.Values.OrderBy(x => x.name))
-                    sb.Append($"{Esc(st.name)}  -  " + (st.finished ? "<color=#7CF2A0>finished</color>" : $"{st.Answered} of {n}") +
-                              (st.present ? "" : "  <color=#FF9A9A>(left)</color>") + "\n");
-                if (h.students.Count == 0) sb.Append("Waiting for students...");
+                SetHead("Quiz running", $"{n} question(s) · " + (left >= 0 ? $"{(int)left / 60}:{(int)left % 60:00} left" : "no time limit"));
+                _liveText.text = h.students.Count == 0 ? "Waiting for students…" : "";
+                _liveText.gameObject.SetActive(_liveText.text.Length > 0);
+
+                // Rows rebuild only when a student's progress changes, not every clock tick.
+                string sig = "R" + string.Join("|", h.students.Values.Select(x => $"{x.name}:{x.Answered}:{x.finished}:{x.present}"));
+                if (sig != _liveSig)
+                {
+                    _liveSig = sig;
+                    AuraKit.ClearChildren(_liveRows);
+                    foreach (var st in h.students.Values.OrderBy(x => x.name))
+                        LiveRow(st.name, st.finished ? "finished" : $"{st.Answered} of {n}",
+                                n > 0 ? (float)st.Answered / n : 0f, st.finished, !st.present);
+                }
+                SetPrimary("End quiz", () => QuizSession.Instance?.End("ended by the teacher"), true, danger: true);
+                _newQuiz.SetActive(false);
             }
             else
             {
-                _title.text = "QUIZ OVER";
                 var r = h.report;
-                sb.Append($"Ended: {h.state.reason}.  Class average <b>{(r != null ? r.Average * 100f : 0f):0}%</b>\n\n");
-                if (r != null)
-                    foreach (var st in r.students)
-                        sb.Append($"{Esc(st.name)}  -  {st.correct} / {st.total}" + (st.note.Length > 0 ? $"  <color=#FFFFFF88>({st.note})</color>" : "") + "\n");
-                sb.Append("\nSaved to REPORTS.");
+                SetHead("Quiz over", $"Ended: {h.state.reason} · class average {(r != null ? r.Average * 100f : 0f):0}% · saved to Reports");
+                _liveText.gameObject.SetActive(false);
+                string sig = "E" + (r != null ? r.students.Count : -1);
+                if (sig != _liveSig)
+                {
+                    _liveSig = sig;
+                    AuraKit.ClearChildren(_liveRows);
+                    if (r != null)
+                        foreach (var st in r.students)
+                            LiveRow(st.name + (st.note.Length > 0 ? $" ({st.note})" : ""), $"{st.correct} / {st.total}",
+                                    st.total > 0 ? (float)st.correct / st.total : 0f, true, false);
+                }
+                SetPrimary("Open report", OpenReport);
+                _newQuiz.SetActive(true);
             }
-            _liveText.text = sb.ToString().TrimEnd();
-            _liveEnd.SetActive(h.state.Running);
-            _liveReport.SetActive(!h.state.Running);
-            _liveNew.SetActive(!h.state.Running);
+        }
+
+        private void LiveRow(string name, string value, float fraction, bool done, bool left)
+        {
+            SimpleBarChart.Bar(_liveRows, Esc(name) + (left ? " (left)" : ""), fraction, value,
+                               done ? new Color(0.44f, 0.76f, 0.63f) : AuraTheme.Lavender);
         }
 
         private void OpenReport()
@@ -303,7 +373,7 @@ namespace AuraSync.UI
             if (r != null) ReportsUI.Open(r);
         }
 
-        // ── Edit modal ─────────────────────────────────────────────────────────
+        // ── Edit modal ─────────────────────────────────────────────────
 
         private void OpenEdit(int i)
         {
@@ -313,14 +383,9 @@ namespace AuraSync.UI
             _editQ.text = q.question;
             for (int k = 0; k < 4; k++) _editO[k].text = k < q.options.Length ? q.options[k] : "";
             _editAnswer = Mathf.Clamp(q.answer, 0, 3);
-            MarkRight();
+            _setRight(_editAnswer);
             _editModal.SetActive(true);
             PanelNavigator.Push(EditNavId, this, CloseEdit);
-        }
-
-        private void MarkRight()
-        {
-            for (int k = 0; k < 4; k++) _editRight[k].color = k == _editAnswer ? GoColor : ButtonColor;
         }
 
         private void SaveEdit()
@@ -343,188 +408,166 @@ namespace AuraSync.UI
         private void CloseEdit()
         {
             if (!_editModal.activeSelf) return;
+            foreach (var f in _editO) f.DeactivateInputField();
+            _editQ.DeactivateInputField();
             _editModal.SetActive(false);
             PanelNavigator.Remove(EditNavId);
         }
 
         private static string Esc(string s) => (s ?? "").Replace("<", "").Replace(">", "");
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            UIBits.Canvas(gameObject, 99);
+            var safe = AuraViewer.CreateCanvas(transform, "QuizTeacherCanvas", 99, out _);
+            var sheet = AuraViewer.ToolSheet(safe, "QuizSheet");
+            sheet.gameObject.AddComponent<TouchBlocker>();
 
-            _panel = new GameObject("QuizTeacher", typeof(RectTransform));
-            _panel.transform.SetParent(transform, false);
-            var rt = (RectTransform)_panel.transform;
-            rt.anchorMin = new Vector2(0.04f, 0.22f);
-            rt.anchorMax = new Vector2(0.96f, 0.84f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _panel.AddComponent<Image>().color = PanelColor;
-            _panel.AddComponent<TouchBlocker>();
-            var vg = _panel.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(16, 16, 12, 14);
-            vg.spacing = 10;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            // Header: title, Start over / New quiz, close.
+            var head = AuraKit.Rect(sheet, "Header");
+            AuraKit.HStack(head, 12f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(head, -1, 88f);
+            _title = AuraKit.Text(head, "AI quiz", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            _title.enableWordWrapping = false;
+            _title.overflowMode = TextOverflowModes.Ellipsis;
+            AuraKit.Flex(_title);
+            AuraWidgets.Chip(head, "Start over", AuraIcons.Orbit, false, BackToSetup, out Button so, 84f);
+            _startOver = so.gameObject;
+            AuraWidgets.Chip(head, "New quiz", AuraIcons.Plus, true, () => QuizSession.Instance?.ClearFinished(), out Button nq, 84f);
+            _newQuiz = nq.gameObject;
+            AuraWidgets.Round(head, AuraIcons.Close, 84f, false, Close, out _);
 
-            var head = UIBits.Row(_panel.transform, 52f);
-            _title = UIBits.Text(head.transform, "AI QUIZ", 24f, Color.white);
-            _title.fontStyle = FontStyles.Bold;
-            UIBits.Flex(_title.gameObject);
-            UIBits.Button(head.transform, "X", new Color(0.45f, 0.14f, 0.14f), Close, 52f);
+            _subtitle = AuraKit.Text(sheet, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
+            _subtitle.enableWordWrapping = true;
 
-            BuildSetup();
-            BuildWorking();
-            BuildReview();
-            BuildLive();
+            // Body: as tall as the step it shows, scrolling past about half the screen.
+            var host = AuraKit.Rect(sheet, "Body");
+            var body = AuraWidgets.Scroll(host, out _scroll, 0f);
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
+            var fit = host.gameObject.AddComponent<FitToContent>();
+            fit.content = body;
+            fit.maxFraction = 0.5f;
+
+            BuildSetup(body);
+            BuildWorking(body);
+            BuildReview(body);
+            BuildLive(body);
+
+            // The main action, full width along the bottom of the sheet.
+            _primary = AuraKit.Pill(sheet, "Generate", null, AuraTheme.Lavender, AuraTheme.Ink, null, AuraTheme.MinTouch);
+            AuraKit.Size(_primary, -1, AuraTheme.MinTouch);
+            _primaryFill = _primary.GetComponent<Image>();
+            _primaryLabel = _primary.GetComponentInChildren<TextMeshProUGUI>();
+
+            _sheet = AuraViewer.SlideUp(sheet);
             BuildEditModal();
-            _panel.SetActive(false);
         }
 
-        private GameObject Page(string name)
+        private RectTransform Page(RectTransform parent, string name)
         {
-            var go = UIBits.Column(_panel.transform, 10f);
-            go.name = name;
-            go.AddComponent<LayoutElement>().flexibleHeight = 1f;
-            return go;
+            var rt = AuraKit.Rect(parent, name);
+            AuraKit.VStack(rt, 20f);
+            return rt;
         }
 
-        private void Choices(Transform parent, string label, string[] options, List<Image> imgs, System.Action<int> pick)
+        private System.Action<int> Choice(RectTransform parent, string label, string[] options, System.Action<int> pick)
         {
-            var row = UIBits.Row(parent, 58f);
-            var l = UIBits.Text(row.transform, label, 19f, new Color(1f, 1f, 1f, 0.75f));
-            l.gameObject.AddComponent<LayoutElement>().preferredWidth = 150f;
-            for (int i = 0; i < options.Length; i++)
-            {
-                int k = i;
-                GameObject b = UIBits.Button(row.transform, options[i], ButtonColor, () => pick(k), 100f);
-                UIBits.Flex(b);
-                imgs.Add(b.GetComponent<Image>());
-            }
+            var block = AuraKit.Rect(parent, label);
+            AuraKit.VStack(block, 8f);
+            AuraKit.Caps(block, label);
+            return AuraWidgets.Segmented(block, options, 0, pick);
         }
 
-        private void BuildSetup()
+        private void BuildSetup(RectTransform parent)
         {
-            _setup = Page("Setup");
+            var p = Page(parent, "Setup");
+            _setup = p.gameObject;
 
-            var scopeRow = UIBits.Row(_setup.transform, 58f);
-            var sl = UIBits.Text(scopeRow.transform, "About", 19f, new Color(1f, 1f, 1f, 0.75f));
-            sl.gameObject.AddComponent<LayoutElement>().preferredWidth = 150f;
-            GameObject whole = UIBits.Button(scopeRow.transform, "WHOLE MODEL", ButtonColor, () => { _scopePath = ""; RefreshSetup(); }, 100f);
-            UIBits.Flex(whole);
-            _scopeImgs.Add(whole.GetComponent<Image>());
-            GameObject selected = UIBits.Button(scopeRow.transform, "SELECTED", ButtonColor, () => { _scopePath = _selectedPath; RefreshSetup(); }, 100f);
-            UIBits.Flex(selected);
-            _scopeImgs.Add(selected.GetComponent<Image>());
-            _selectedBtn = selected.GetComponent<Button>();
-            _selectedText = selected.GetComponentInChildren<TextMeshProUGUI>();
+            var scope = AuraKit.Rect(p, "Scope");
+            AuraKit.VStack(scope, 8f);
+            _scopeRow = scope.gameObject;
+            AuraKit.Caps(scope, "About");
+            _setScope = AuraWidgets.Segmented(scope, new[] { "Whole model", "Selected part" }, 0,
+                                              k => { _scopePath = k == 0 ? "" : _selectedPath; RefreshSetup(); });
+            _scopeNote = AuraKit.Text(p, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
 
-            Choices(_setup.transform, "Questions", new[] { "5", "10", "15" }, _countImgs, k => { _count = k; RefreshSetup(); });
-            Choices(_setup.transform, "Difficulty", new[] { "EASY", "MEDIUM", "HARD" }, _diffImgs, k => { _diff = k; RefreshSetup(); });
-            Choices(_setup.transform, "Time limit", new[] { "NONE", "2 MIN", "5 MIN", "10 MIN" }, _limitImgs, k => { _limit = k; RefreshSetup(); });
+            _setCount = Choice(p, "Questions", new[] { "5", "10", "15" }, k => { _count = k; RefreshSetup(); });
+            _setDiff = Choice(p, "Difficulty", new[] { "Easy", "Medium", "Hard" }, k => { _diff = k; RefreshSetup(); });
+            _setLimit = Choice(p, "Time limit", new[] { "None", "2 min", "5 min", "10 min" }, k => { _limit = k; RefreshSetup(); });
 
-            var go = UIBits.Row(_setup.transform, 66f);
-            UIBits.Flex(UIBits.Button(go.transform, "GENERATE", OnColor, Generate, 100f));
-
-            _status = UIBits.Text(_setup.transform, "", 18f, new Color(1f, 0.7f, 0.7f));
-            _status.enableWordWrapping = true;
-            var hint = UIBits.Text(_setup.transform,
-                "The AI writes multiple-choice questions from the model's part facts. You can edit, replace or delete any of them before sending.",
-                17f, new Color(1f, 1f, 1f, 0.55f));
-            hint.enableWordWrapping = true;
+            _status = AuraKit.Text(p, "", AuraTheme.SizeSmall, AuraTheme.Rose);
         }
 
-        private void BuildWorking()
+        private void BuildWorking(RectTransform parent)
         {
-            _working = Page("Working");
-            _workingText = UIBits.Text(_working.transform, "", 22f, Color.white);
+            var p = Page(parent, "Working");
+            _working = p.gameObject;
+            var row = AuraKit.Rect(p, "Row");
+            AuraKit.HStack(row, 20f, 0, TextAnchor.MiddleLeft);
+            AuraKit.Size(row, -1, 140f);
+            var icon = AuraKit.Icon(row, AuraIcons.AI, 72f, AuraTheme.Lavender);
+            icon.gameObject.AddComponent<Blink>();
+            _workingText = AuraKit.Text(row, "", AuraTheme.SizeSmall, AuraTheme.Text);
             _workingText.enableWordWrapping = true;
-            _workingText.alignment = TextAlignmentOptions.Center;
-            _workingText.gameObject.AddComponent<LayoutElement>().minHeight = 160f;
-            var row = UIBits.Row(_working.transform, 60f);
-            UIBits.Flex(UIBits.Button(row.transform, "CANCEL", ButtonColor, CancelGenerate, 100f));
+            AuraKit.Flex(_workingText);
         }
 
-        private void BuildReview()
+        private void BuildReview(RectTransform parent)
         {
-            _review = Page("Review");
-            _reviewHead = UIBits.Text(_review.transform, "", 17f, new Color(1f, 1f, 1f, 0.7f));
-            _reviewHead.enableWordWrapping = true;
-            _reviewRows = UIBits.Scroll(_review.transform, 200f);
-            var btns = UIBits.Row(_review.transform, 64f);
-            UIBits.Button(btns.transform, "START OVER", ButtonColor, BackToSetup, 170f);
-            GameObject send = UIBits.Button(btns.transform, "SEND", GoColor, Send, 100f);
-            UIBits.Flex(send);
-            _sendBtn = send.GetComponent<Button>();
-            _sendText = send.GetComponentInChildren<TextMeshProUGUI>();
+            var p = Page(parent, "Review");
+            _review = p.gameObject;
+            _reviewHead = AuraKit.Text(p, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
+            _reviewRows = AuraKit.Rect(p, "Questions");
+            AuraKit.VStack(_reviewRows, 14f);
         }
 
-        private void BuildLive()
+        private void BuildLive(RectTransform parent)
         {
-            _live = Page("Live");
-            _liveText = UIBits.Text(_live.transform, "", 20f, Color.white);
-            _liveText.enableWordWrapping = true;
-            _liveText.alignment = TextAlignmentOptions.TopLeft;
-            _liveText.richText = true;
-            _liveText.gameObject.AddComponent<LayoutElement>().flexibleHeight = 1f;
-            var btns = UIBits.Row(_live.transform, 64f);
-            _liveEnd = UIBits.Flex(UIBits.Button(btns.transform, "END QUIZ", DangerColor, () => QuizSession.Instance?.End("ended by the teacher"), 100f));
-            _liveReport = UIBits.Flex(UIBits.Button(btns.transform, "OPEN REPORT", OnColor, OpenReport, 100f));
-            _liveNew = UIBits.Flex(UIBits.Button(btns.transform, "NEW QUIZ", ButtonColor, () => QuizSession.Instance?.ClearFinished(), 100f));
+            var p = Page(parent, "Live");
+            _live = p.gameObject;
+            _liveText = AuraKit.Text(p, "", AuraTheme.SizeSmall, AuraTheme.TextDim);
+            _liveRows = AuraKit.Rect(p, "Students");
+            AuraKit.VStack(_liveRows, 8f);
         }
 
         private void BuildEditModal()
         {
-            _editModal = new GameObject("EditModal", typeof(RectTransform));
-            _editModal.transform.SetParent(transform, false);
-            UIBits.Stretch((RectTransform)_editModal.transform);
-            var mc = _editModal.AddComponent<Canvas>();
-            mc.overrideSorting = true;
-            mc.sortingOrder = 102;
-            _editModal.AddComponent<GraphicRaycaster>();
-            _editModal.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
-            _editModal.AddComponent<TouchBlocker>();
+            var canvas = AuraKit.CreateCanvas(transform, "QuizEdit", 102);
+            _editModal = canvas.gameObject;
+            var dim = AuraKit.Box(canvas.transform, "Dim", AuraTheme.A(AuraTheme.Ink, 0.75f), 0f, true);
+            AuraKit.Fill(dim.rectTransform);
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
+            var lift = AuraKit.Fill(AuraKit.Rect(safe, "Lift"));
+            lift.gameObject.AddComponent<KeyboardLift>().target = lift;
 
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(_editModal.transform, false);
-            var crt = (RectTransform)card.transform;
-            crt.anchorMin = new Vector2(0.05f, 0.5f); crt.anchorMax = new Vector2(0.95f, 0.5f);
+            var card = AuraKit.Box(lift, "Card", AuraTheme.A(AuraTheme.Indigo, 0.98f), AuraTheme.Radius + 8f, true);
+            AuraKit.Border(card, AuraTheme.Slate, AuraTheme.Radius + 8f);
+            var crt = card.rectTransform;
+            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.56f);
             crt.pivot = new Vector2(0.5f, 0.5f);
-            crt.offsetMin = crt.offsetMax = Vector2.zero;
-            card.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            card.AddComponent<Image>().color = PanelColor;
-            var vg = card.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(20, 20, 16, 18);
-            vg.spacing = 10;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            card.gameObject.AddComponent<MatchParentWidth>().max = 980f;
+            var v = AuraKit.VStack(card, 16f);
+            v.padding = new RectOffset(40, 40, 36, 36);
+            AuraKit.FitHeight(card);
 
-            var t = UIBits.Text(card.transform, "Edit question  ·  tap RIGHT beside the correct option", 20f, Color.white);
-            t.fontStyle = FontStyles.Bold;
-            t.enableWordWrapping = true;
-            _editQ = UIBits.Input(card.transform, "Question", 120f, true, 300);
+            AuraKit.Text(card.transform, "Edit question", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            _editQ = AuraWidgets.Input(card.transform, "Question", "", true, 180f, 300);
             for (int k = 0; k < 4; k++)
-            {
-                int kk = k;
-                var row = UIBits.Row(card.transform, 64f);
-                var lab = UIBits.Text(row.transform, ((char)('A' + k)).ToString(), 22f, Color.white);
-                lab.gameObject.AddComponent<LayoutElement>().preferredWidth = 30f;
-                _editO[k] = UIBits.Input(row.transform, $"Option {(char)('A' + k)}", 60f, false, 160);
-                UIBits.Flex(_editO[k].gameObject);
-                _editRight[k] = UIBits.Button(row.transform, "RIGHT", ButtonColor, () => { _editAnswer = kk; MarkRight(); }, 100f).GetComponent<Image>();
-            }
-            var btns = UIBits.Row(card.transform, 62f);
-            UIBits.Flex(UIBits.Button(btns.transform, "CANCEL", ButtonColor, CloseEdit, 100f));
-            UIBits.Flex(UIBits.Button(btns.transform, "SAVE", OnColor, SaveEdit, 100f));
+                _editO[k] = AuraWidgets.Input(card.transform, $"Option {(char)('A' + k)}", "", false, 112f, 160);
+            AuraKit.Caps(card.transform, "Right answer");
+            _setRight = AuraWidgets.Segmented(card.transform, new[] { "A", "B", "C", "D" }, 0, k => _editAnswer = k);
+
+            var back = AuraKit.Pill(lift, "Back", AuraIcons.Back, AuraTheme.A(AuraTheme.Indigo, 0.96f), AuraTheme.Text,
+                                    CloseEdit, AuraViewer.BackHeight, AuraTheme.Slate);
+            AuraKit.Pin((RectTransform)back.transform, Vector2.zero, Vector2.zero,
+                        new Vector2(AuraViewer.Gutter, AuraViewer.Gutter), new Vector2(270, AuraViewer.BackHeight));
+            var save = AuraKit.Pill(lift, "Save", AuraIcons.Ok, AuraTheme.Lavender, AuraTheme.Ink, SaveEdit, AuraViewer.BackHeight);
+            AuraKit.Pin((RectTransform)save.transform, new Vector2(1, 0), new Vector2(1, 0),
+                        new Vector2(-AuraViewer.Gutter, AuraViewer.Gutter), new Vector2(300, AuraViewer.BackHeight));
 
             _editModal.SetActive(false);
         }
-    }
-
-    internal static class GameObjectAlso
-    {
-        public static GameObject Also(this GameObject go, System.Action<GameObject> a) { a(go); return go; }
     }
 }

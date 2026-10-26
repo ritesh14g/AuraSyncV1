@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using TMPro;
 using UnityEngine;
@@ -9,43 +10,41 @@ using AuraSync.Space;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// The SECTION toolbar (V3 Phase 6), above the bottom buttons:
+    /// SECTION (dock tab), a sheet beside the tab:
     ///
-    ///   [X] [Y] [Z]  FLIP  FILL  OFF  X      which way the cut faces; flip the removed half; filled
-    ///                                         cut faces on/off (this phone only); remove the cut; close
-    ///   MOVE  ----o--------                   slide the cut through the model
-    ///   TILT  --------o----                   tilt it up to 60 degrees either way
+    ///   Section                         [● Cut on]
+    ///   [ X | Y | Z ]   (⇄ Flip)  (▧ Fill)
+    ///   Position  ─────────●──────  +12
+    ///   Tilt      ───────●────────   0°
     ///
-    /// SECTION on the left rail opens it (and starts a cut if there is none). Closing the toolbar
-    /// keeps the cut; OFF removes it. One finger on the model still turns the model, which is why
-    /// the cut is steered from here rather than by handles on the model. While the toolbar is open a
-    /// thin frame shows where the cut is.
+    /// Opening it starts a cut half way through the model if there is none; closing keeps the cut;
+    /// "Cut on" in the header removes it. One finger on the model still turns the model, which is
+    /// why the cut is steered from here. While the sheet is open a thin lavender frame shows where
+    /// the cut is.
     ///
-    /// Sliders share on release, buttons at once, through SectionCutter.Commit (the "show to
-    /// everyone?" question, or nothing with KEEP SHARING). A presenter who handed the Section control
-    /// to a student sees the toolbar follow the student's cut, locked, until they take it back.
+    /// Sliders share on release, buttons at once, through SectionCutter.Commit. A presenter who
+    /// handed the Section control to a student sees the sheet follow the student's cut, locked.
     /// </summary>
     public class SectionCutUI : MonoBehaviour
     {
         public static SectionCutUI Instance { get; private set; }
 
         private const string RailId = "section";
-        private const string NavId  = "section";
+        private const string NavId = "section";
 
-        private static readonly Color PanelColor = new Color(0.07f, 0.09f, 0.13f, 0.96f);
-        private static readonly Color OnColor    = new Color(0.36f, 0.30f, 0.85f, 1f);
-        private static readonly Color OffColor   = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color DangerColor = new Color(0.55f, 0.18f, 0.18f, 1f);
-
-        private GameObject _toolbar;
-        private readonly Image[] _axisImg = new Image[3];
-        private Image _flipImg, _fillImg;
+        private AuraSlidePanel _sheet;
+        private RectTransform _sheetRt;
+        private TextMeshProUGUI _status, _note;
+        private Action<int> _setAxis;
+        private Action<bool> _flipPaint, _fillPaint, _onPaint;
         private Slider _move, _tilt;
-        private TextMeshProUGUI _moveLabel, _tiltLabel, _status;
+        private TextMeshProUGUI _moveValue, _tiltValue;
         private CanvasGroup _controls;
         private bool _suppress;
         private bool _railVisible;
         private SectionCutter _bound;
+
+        private bool IsOpen => _sheet != null && _sheet.IsShown;
 
         void Awake()
         {
@@ -67,7 +66,8 @@ namespace AuraSync.UI
         private IEnumerator Bind()
         {
             while (SpaceSessionHUD.Instance == null) yield return null;
-            SpaceSessionHUD.Instance.AddRailButton(RailId, "SECTION", ToggleToolbar);
+            SpaceSessionHUD.Instance.AddRailButton(RailId, "Section", ToggleToolbar);
+            SpaceSessionHUD.Instance.SetSlotDoubleTap(RailId, OffAndClose);
             SpaceSessionHUD.Instance.SetSlotVisible(RailId, false);
 
             while (SectionCutter.Instance == null) yield return null;
@@ -89,11 +89,11 @@ namespace AuraSync.UI
             }
         }
 
-        // ── Opening ────────────────────────────────────────────────────────────
+        // ── Opening ────────────────────────────────────────────────────
 
         private void ToggleToolbar()
         {
-            if (_toolbar.activeSelf) CloseToolbar();
+            if (IsOpen) CloseToolbar();
             else OpenToolbar();
         }
 
@@ -102,33 +102,31 @@ namespace AuraSync.UI
             SectionCutter cut = SectionCutter.Instance;
             if (cut == null) return;
 
-            ModelPartsDrawerUI.Instance?.SetOpen(false);
-            PartNotesPanelUI.Instance?.CloseList();
-            SimulationPanelUI.Instance?.Hide(); // the simulation keeps running under the cut
-
-            _toolbar.SetActive(true);
+            ViewerPanels.Opened(RailId, CloseToolbar);
             cut.ShowFrame = true;
             PanelNavigator.Push(NavId, this, CloseToolbar);
 
-            // Opening SECTION with no cut starts one, half way through the model.
+            // Opening Section with no cut starts one, half way through the model.
             if (!cut.State.active && SectionCutter.LocalPlayerMayCut)
             {
                 cut.SetState(SectionCutter.CutState.Default, dragging: false);
                 cut.Commit();
             }
             Refresh();
+            _sheet.Show();
         }
 
-        /// <summary>Closes the toolbar; the cut stays.</summary>
+        /// <summary>Closes the sheet; the cut stays.</summary>
         public void CloseToolbar()
         {
-            if (_toolbar == null || !_toolbar.activeSelf) return;
-            _toolbar.SetActive(false);
+            if (!IsOpen) return;
+            _sheet.Hide();
+            ViewerPanels.Closed(RailId);
             if (SectionCutter.Instance != null) SectionCutter.Instance.ShowFrame = false;
             PanelNavigator.Remove(NavId);
         }
 
-        // ── Changes ────────────────────────────────────────────────────────────
+        // ── Changes ────────────────────────────────────────────────────
 
         private SectionCutter.CutState Current()
         {
@@ -137,7 +135,7 @@ namespace AuraSync.UI
             return s;
         }
 
-        private void Change(System.Func<SectionCutter.CutState, SectionCutter.CutState> edit, bool dragging)
+        private void Change(Func<SectionCutter.CutState, SectionCutter.CutState> edit, bool dragging)
         {
             SectionCutter cut = SectionCutter.Instance;
             if (cut == null || _suppress) return;
@@ -149,16 +147,37 @@ namespace AuraSync.UI
 
         private void OnAxis(int axis) => Change(s => { s.axis = axis; s.tilt = 0f; return s; }, false);
         private void OnFlip() => Change(s => { s.flip = !s.flip; return s; }, false);
-
         private void OnFill() => SectionCutter.SetFill(!SectionCutter.Fill);
 
-        private void OnOff()
+        /// <summary>The header switch: removes the cut (and closes), or starts one again.</summary>
+        /// <summary>Double tap on the Section tab: the model is whole again and the sheet goes away.</summary>
+        public void OffAndClose()
+        {
+            SectionCutter cut = SectionCutter.Instance;
+            if (cut != null && cut.State.active && SectionCutter.LocalPlayerMayCut)
+            {
+                cut.SetState(SectionCutter.CutState.Off, dragging: false);
+                cut.Commit();
+                Toast.Show("Section off.");
+            }
+            CloseToolbar();
+        }
+
+        private void OnCutSwitch()
         {
             SectionCutter cut = SectionCutter.Instance;
             if (cut == null) return;
-            cut.SetState(SectionCutter.CutState.Off, dragging: false);
-            cut.Commit();
-            CloseToolbar();
+            if (cut.State.active)
+            {
+                cut.SetState(SectionCutter.CutState.Off, dragging: false);
+                cut.Commit();
+                CloseToolbar();
+            }
+            else if (SectionCutter.LocalPlayerMayCut)
+            {
+                cut.SetState(SectionCutter.CutState.Default, dragging: false);
+                cut.Commit();
+            }
         }
 
         private void Refresh()
@@ -167,194 +186,92 @@ namespace AuraSync.UI
             if (cut == null) return;
             var s = cut.State;
 
-            if (SpaceSessionHUD.Instance != null)
-                SpaceSessionHUD.Instance.SetSlotLabel(RailId, s.active ? "SECTION\n(on)" : "SECTION");
+            SpaceSessionHUD.Instance?.SetSlotLabel(RailId, s.active ? "Cut on" : "Section");
 
-            for (int i = 0; i < 3; i++) _axisImg[i].color = s.active && s.axis == i ? OnColor : OffColor;
-            _flipImg.color = s.active && s.flip ? OnColor : OffColor;
-            _fillImg.color = SectionCutter.Fill ? OnColor : OffColor;
+            _setAxis(s.active ? s.axis : 0);
+            _flipPaint(s.active && s.flip);
+            _fillPaint(SectionCutter.Fill);
+            _onPaint(s.active);
+            _status.text = "";
 
             _suppress = true;
             _move.SetValueWithoutNotify(s.active ? s.move : 0f);
             _tilt.SetValueWithoutNotify(s.active ? s.tilt : 0f);
             _suppress = false;
-            // The values ride in the bubbles above the knobs.
-            _moveLabel.text = $"{Mathf.RoundToInt((s.active ? s.move : 0f) * 100f)}";
-            _tiltLabel.text = $"{Mathf.RoundToInt(s.active ? s.tilt : 0f)}";
+            int mv = Mathf.RoundToInt((s.active ? s.move : 0f) * 100f);
+            _moveValue.text = mv > 0 ? "+" + mv : mv.ToString();
+            _tiltValue.text = $"{Mathf.RoundToInt(s.active ? s.tilt : 0f)}°";
 
             bool may = SectionCutter.LocalPlayerMayCut;
             _controls.interactable = may;
             _controls.alpha = may ? 1f : 0.5f;
 
-            string status = "";
-            if (!may)
-                status = $"{ControlOwnership.HolderName(Control.Section)} drives the cut. TAKE BACK is in the Parts drawer.";
-            else if (!cut.ShaderCutAvailable)
-                status = "Simple cut on this phone: cut faces are not filled, and it shows from the cut side only.";
-            else if (PhotonNetwork.InRoom && LiveSharing.IsLive(Control.Section))
-                status = "Shared live with the room.";
-            _status.text = status;
-            _status.gameObject.SetActive(status.Length > 0);
+            string note = "";
+            if (!may) note = $"{ControlOwnership.HolderName(Control.Section)} drives the cut. Take back is in Parts.";
+            else if (!cut.ShaderCutAvailable) note = "Simple cut on this phone: cut faces are not filled, and it shows from the cut side only.";
+            else if (PhotonNetwork.InRoom && LiveSharing.IsLive(Control.Section)) note = "Shared live with the room.";
+            _note.text = note;
+            _note.gameObject.SetActive(note.Length > 0);
         }
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 97; // the drawer's level; they never show together
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            var safe = AuraViewer.CreateCanvas(transform, "SectionCanvas", 97, out _);
+            _sheetRt = AuraViewer.ToolSheet(safe, "SectionSheet");
 
-            _toolbar = new GameObject("SectionToolbar", typeof(RectTransform));
-            _toolbar.transform.SetParent(transform, false);
-            var rt = (RectTransform)_toolbar.transform;
-            // Pinned above the bottom buttons and exactly as tall as its rows (no empty band below).
-            rt.anchorMin = new Vector2(0.16f, 0.215f);
-            rt.anchorMax = new Vector2(0.98f, 0.215f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _toolbar.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            _toolbar.AddComponent<Image>().color = PanelColor;
-            _toolbar.AddComponent<TouchBlocker>(); // sliding the cut must not turn the model
+            // Header: title, and the cut's on/off switch on the right.
+            var head = AuraKit.Rect(_sheetRt, "Header");
+            AuraKit.HStack(head, 12f);
+            AuraKit.Size(head, -1, 92f);
+            var title = AuraKit.Text(head, "Section", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            AuraKit.Flex(title);
+            _status = AuraKit.Caps(head, "", AuraTheme.Lavender);
+            _status.gameObject.SetActive(false);
+            _onPaint = AuraWidgets.Chip(head, "Cut on", AuraIcons.Section, true, OnCutSwitch, out _, 92f);
 
-            var vg = _toolbar.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(12, 12, 10, 10);
-            vg.spacing = 8;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            var controls = AuraKit.Rect(_sheetRt, "Controls");
+            AuraKit.VStack(controls, 16f);
+            _controls = controls.gameObject.AddComponent<CanvasGroup>();
 
-            // Buttons row. Close stays usable when the rest is locked, so it sits outside the group.
-            var top = Row(_toolbar.transform, 56f);
-            var group = new GameObject("Controls", typeof(RectTransform));
-            group.transform.SetParent(top.transform, false);
-            group.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            var gh = group.AddComponent<HorizontalLayoutGroup>();
-            gh.spacing = 8;
-            gh.childControlWidth = gh.childControlHeight = true;
-            gh.childForceExpandWidth = false;
-            var topGroup = group.AddComponent<CanvasGroup>();
+            var row = AuraKit.Rect(controls, "AxisRow");
+            AuraKit.HStack(row, 18f);
+            AuraKit.Size(row, -1, 112f);
+            var axisHost = AuraKit.Rect(row, "Axis");
+            AuraKit.Flex(axisHost);
+            AuraKit.VStack(axisHost, 0f);
+            _setAxis = AuraWidgets.Segmented(axisHost, new[] { "X", "Y", "Z" }, 0, OnAxis);
+            _flipPaint = AuraWidgets.Chip(row, "Flip", AuraIcons.Flip, false, OnFlip, out _, 112f);
 
-            string[] axes = { "X", "Y", "Z" };
-            for (int i = 0; i < 3; i++)
-            {
-                int a = i;
-                _axisImg[i] = Button(group.transform, axes[i], OffColor, () => OnAxis(a), 64f).GetComponent<Image>();
-            }
-            _flipImg = Button(group.transform, "FLIP", OffColor, OnFlip, 96f).GetComponent<Image>();
-            Button(group.transform, "OFF", DangerColor, OnOff, 90f);
-            // FILL is how this phone shows a cut, not a change to the cut, so it is never locked.
-            _fillImg = Button(top.transform, "FILL", OnColor, OnFill, 96f).GetComponent<Image>();
-            Button(top.transform, "X", new Color(0.45f, 0.14f, 0.14f), CloseToolbar, 56f);
+            _move = SliderRow(controls, "Position", -1f, 1f, out _moveValue, v => Change(s => { s.move = v; return s; }, true));
+            _tilt = SliderRow(controls, "Tilt", -SectionCutter.MaxTilt, SectionCutter.MaxTilt, out _tiltValue,
+                              v => Change(s => { s.tilt = v; return s; }, true));
 
-            var sliders = new GameObject("Sliders", typeof(RectTransform));
-            sliders.transform.SetParent(_toolbar.transform, false);
-            var sv = sliders.AddComponent<VerticalLayoutGroup>();
-            sv.spacing = 8;
-            sv.childControlWidth = sv.childControlHeight = true;
-            sv.childForceExpandWidth = true; sv.childForceExpandHeight = false;
-            _controls = sliders.AddComponent<CanvasGroup>();
+            // Fill is how this phone shows a cut, not a change to the cut, so it is never locked.
+            var fillRow = AuraKit.Rect(_sheetRt, "FillRow");
+            AuraKit.HStack(fillRow, 14f);
+            AuraKit.Size(fillRow, -1, 96f);
+            _fillPaint = AuraWidgets.Chip(fillRow, "Filled cut faces", AuraIcons.Fill, true, OnFill, out _, 96f);
+            AuraKit.Flex(AuraKit.Rect(fillRow, "Spacer"));
 
-            _move = SliderRow(sliders.transform, "MOVE", -1f, 1f, "-100", "100", out _moveLabel,
-                v => Change(s => { s.move = v; return s; }, true));
-            _tilt = SliderRow(sliders.transform, "TILT", -SectionCutter.MaxTilt, SectionCutter.MaxTilt,
-                              $"-{SectionCutter.MaxTilt:0}", $"{SectionCutter.MaxTilt:0}", out _tiltLabel,
-                v => Change(s => { s.tilt = v; return s; }, true));
+            _note = AuraKit.Text(_sheetRt, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
+            _note.gameObject.SetActive(false);
 
-            _status = Text(_toolbar.transform, "", 18f, new Color(1f, 1f, 1f, 0.65f));
-            _status.enableWordWrapping = true;
-            var sle = _status.gameObject.AddComponent<LayoutElement>();
-            sle.minHeight = sle.preferredHeight = 30f;
-
-            // The buttons row's own group follows the same lock as the sliders.
-            _controlsTop = topGroup;
-            _toolbar.SetActive(false);
+            _sheet = AuraViewer.SlideUp(_sheetRt);
         }
 
-        private CanvasGroup _controlsTop;
-
-        void LateUpdate()
+        /// <summary>A labelled slider with its value on the right; letting go offers the cut to the room.</summary>
+        private Slider SliderRow(RectTransform parent, string name, float min, float max,
+                                 out TextMeshProUGUI value, Action<float> onChange)
         {
-            if (_controlsTop == null || _controls == null) return;
-            _controlsTop.interactable = _controls.interactable;
-            _controlsTop.alpha = _controls.alpha;
-        }
-
-        /// <summary>
-        /// One slider row: the name on the left, then a SleekSlider (thin rounded track, fill to a
-        /// round knob, the value in a bubble above it, the ends labelled). Restyled 2026-10-13.
-        /// </summary>
-        private Slider SliderRow(Transform parent, string name, float min, float max, string minText, string maxText,
-                                 out TextMeshProUGUI valueText, System.Action<float> onChange)
-        {
-            var row = Row(parent, SleekSlider.RowHeight);
-            row.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.LowerLeft;
-
-            TextMeshProUGUI label = Text(row.transform, name, 19f, new Color(1f, 1f, 1f, 0.85f));
-            label.fontStyle = FontStyles.Bold;
-            label.alignment = TextAlignmentOptions.BottomLeft;
-            label.margin = new Vector4(0f, 0f, 0f, SleekSlider.RowHeight * 0.30f - 12f); // level with the track
-            var lle = label.gameObject.AddComponent<LayoutElement>();
-            lle.preferredWidth = lle.minWidth = 76f;
-
-            Slider slider = SleekSlider.Create(row.transform, min, max, minText, maxText, out valueText);
-            slider.onValueChanged.AddListener(v => onChange(v));
-
-            // Letting go is when the cut is offered to the room.
-            slider.gameObject.AddComponent<PointerUpRelay>().Released += () => SectionCutter.Instance?.Commit();
-            return slider;
-        }
-
-        private static GameObject Row(Transform parent, float height)
-        {
-            var go = new GameObject("Row", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = height;
-            le.flexibleHeight = 0f;
-            var hg = go.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing = 8;
-            hg.childAlignment = TextAnchor.MiddleLeft;
-            hg.childControlWidth = hg.childControlHeight = true;
-            hg.childForceExpandWidth = false; hg.childForceExpandHeight = true;
-            return go;
-        }
-
-        private static TextMeshProUGUI Text(Transform parent, string text, float size, Color color)
-        {
-            var go = new GameObject("Text", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.text = text;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = TextAlignmentOptions.MidlineLeft;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static GameObject Button(Transform parent, string label, Color color, UnityEngine.Events.UnityAction onClick, float width)
-        {
-            var go = new GameObject(label, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minWidth = le.preferredWidth = width;
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var b = go.AddComponent<UnityEngine.UI.Button>();
-            b.targetGraphic = img;
-            b.onClick.AddListener(onClick);
-            var t = Text(go.transform, label, 21f, Color.white);
-            var trt = t.rectTransform;
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
-            t.alignment = TextAlignmentOptions.Center;
-            t.fontStyle = FontStyles.Bold;
-            t.enableAutoSizing = true; t.fontSizeMin = 13f; t.fontSizeMax = 21f;
-            return go;
+            var head = AuraKit.Rect(parent, name + "Head");
+            AuraKit.HStack(head, 10f);
+            AuraKit.Size(head, -1, 44f);
+            AuraKit.Flex(AuraKit.Text(head, name, AuraTheme.SizeSmall + 2f, AuraTheme.Text, AuraWeight.SemiBold));
+            value = AuraKit.Text(head, "", AuraTheme.SizeSmall + 2f, AuraTheme.Lavender, AuraWeight.Bold, TextAlignmentOptions.MidlineRight);
+            AuraKit.Size(value, 140f);
+            return AuraWidgets.Slider(parent, 0f, onChange, () => SectionCutter.Instance?.Commit(), min, max, 88f);
         }
     }
 }

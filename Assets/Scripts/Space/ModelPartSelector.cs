@@ -123,8 +123,50 @@ namespace AuraSync.Space
             if (ModelRaycaster.Raycast(cam.ScreenPointToRay(screenPos), root, out Renderer hit, out _))
                 path = ModelRaycaster.GetPartPath(root, hit.transform);
 
+            // A tap on empty space while a panel is open just closes the panel (a second way out,
+            // besides Back). The selection stays, and the tap does not start a double tap.
+            if (string.IsNullOrEmpty(path) && AuraSync.UI.ViewerPanels.CloseOnEmptyTap())
+            {
+                _lastTapTime = -10f;
+                return;
+            }
+
+            // A second tap on the same spot soon after is a double tap: isolate (or show all). The
+            // first tap has already selected the part, or toggled it off if it was selected; the
+            // double tap must leave it selected rather than toggle again.
+            float now = Time.unscaledTime;
+            float slop = Mathf.Max(40f, Screen.dpi > 0 ? Screen.dpi * 0.25f : 60f);
+            bool isDouble = now - _lastTapTime < DoubleTapSeconds && path == _lastTapPath &&
+                            (screenPos - _lastTapPos).sqrMagnitude < slop * slop;
+            _lastTapTime = isDouble ? -10f : now;
+            _lastTapPos = screenPos;
+            _lastTapPath = path;
+
+            if (isDouble)
+            {
+                InDoubleTap = true;
+                try
+                {
+                    OnPartDoubleTapped?.Invoke(path);
+                    if (!string.IsNullOrEmpty(path) && OwnPath != path) SelectByPath(path);
+                }
+                finally { InDoubleTap = false; }
+                return;
+            }
+
             SelectByPath(path);
         }
+
+        private const float DoubleTapSeconds = 0.35f;
+        private float _lastTapTime = -10f;
+        private Vector2 _lastTapPos;
+        private string _lastTapPath;
+
+        /// <summary>A double tap on the model: the part's path, or "" for empty space (UI V2: isolate / show all).</summary>
+        public event Action<string> OnPartDoubleTapped;
+
+        /// <summary>True while a double tap is being handled, so selection listeners can tell it apart.</summary>
+        public static bool InDoubleTap { get; private set; }
 
         /// <summary>True when this device is the room's presenter (used for their own per-model memory).</summary>
         public static bool IsPresenting =>

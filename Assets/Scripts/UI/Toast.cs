@@ -79,46 +79,47 @@ namespace AuraSync.UI
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 106; // over the share prompt too: an answer's result shows on top
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
+            // A pill above Back and the bottom buttons, in the app's theme. Sized to its text.
+            var canvas = AuraKit.CreateCanvas(transform, "ToastCanvas", 106); // over the share prompt too
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
 
-            var box = new GameObject("Box", typeof(RectTransform));
-            box.transform.SetParent(transform, false);
-            var rt = (RectTransform)box.transform;
-            rt.anchorMin = new Vector2(0.10f, 0.215f);
-            rt.anchorMax = new Vector2(0.90f, 0.275f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
+            var box = AuraKit.Box(safe, "Toast", AuraTheme.A(AuraTheme.Ink, 0.94f), 44f);
+            AuraKit.Border(box, AuraTheme.A(AuraTheme.Lavender, 0.6f), 44f);
+            var rt = box.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(0f, AuraViewer.BottomReserve + 30f);
+            var h = AuraKit.HStack(box, 0f, 0, TextAnchor.MiddleCenter);
+            h.padding = new RectOffset(40, 40, 22, 22);
+            var fit = box.gameObject.AddComponent<ContentSizeFitter>();
+            fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            var bg = box.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.06f, 0.09f, 0.92f);
-            bg.raycastTarget = false;
-
-            _group = box.AddComponent<CanvasGroup>();
+            _group = box.gameObject.AddComponent<CanvasGroup>();
             _group.alpha = 0f;
             _group.blocksRaycasts = false;
-            _group.interactable   = false;
+            _group.interactable = false;
 
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(box.transform, false);
-            var trt = (RectTransform)textGo.transform;
-            trt.anchorMin = Vector2.zero;
-            trt.anchorMax = Vector2.one;
-            trt.offsetMin = new Vector2(18f, 4f);
-            trt.offsetMax = new Vector2(-18f, -4f);
-
-            _text = textGo.AddComponent<TextMeshProUGUI>();
-            _text.fontSize  = 28f;
-            _text.color     = Color.white;
-            _text.alignment = TextAlignmentOptions.Center;
-            _text.enableAutoSizing = true;
-            _text.fontSizeMin = 18f;
-            _text.fontSizeMax = 28f;
-            _text.raycastTarget = false;
+            _text = AuraKit.Text(box.transform, "", AuraTheme.SizeSmall, AuraTheme.Text, AuraWeight.SemiBold, TextAlignmentOptions.Center);
+            _text.enableWordWrapping = true;
+            _text.gameObject.AddComponent<ToastWidth>();
         }
+    }
+
+    /// <summary>Lets a toast hug short messages and wrap long ones at a comfortable width.</summary>
+    public class ToastWidth : MonoBehaviour, ILayoutElement
+    {
+        private TextMeshProUGUI _t;
+        void Awake() => _t = GetComponent<TextMeshProUGUI>();
+        public float minWidth => -1;
+        public float preferredWidth => _t == null ? -1 : Mathf.Min(_t.GetPreferredValues(_t.text, 9999f, 0f).x, 860f);
+        public float flexibleWidth => -1;
+        public float minHeight => -1;
+        public float preferredHeight => _t == null ? -1 : _t.GetPreferredValues(_t.text, preferredWidth, 0f).y;
+        public float flexibleHeight => -1;
+        public int layoutPriority => 2;
+        public void CalculateLayoutInputHorizontal() { }
+        public void CalculateLayoutInputVertical() { }
     }
 }

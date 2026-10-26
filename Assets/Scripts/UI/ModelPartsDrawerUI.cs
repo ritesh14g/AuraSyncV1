@@ -10,93 +10,83 @@ using AuraSync.AI;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// The Model Parts drawer: a browsable list of the loaded model's parts, built procedurally at
-    /// runtime like the rest of the Space HUD.
+    /// PARTS (top-left): the model explorer, sliding in from the left.
     ///
-    /// Why a list at all, when parts can be tapped in the 3D view: a part can be hidden behind
-    /// another, too small to hit on a phone, or known only by name. The list reaches all of them.
+    ///   [Explode ─────●────── 64%]        always on top; dragging it fades the rest of the drawer
+    ///   Together                  Apart   away so the explosion is fully visible
+    ///   ROOM CONTROLS (in a room)
+    ///   [🔍 Filter 14 parts]
+    ///   Turbine casing                    large, readable names; indent shows the tree
+    ///     Fan rotor                isolated
+    ///   Tap to select · double-tap to isolate
     ///
-    /// Picking a row goes through <see cref="ModelPartSelector.SelectByPath"/>, so it obeys exactly
-    /// the same rules as a tap on the model - the presenter's pick is shared with the room in gold,
-    /// anyone else's stays on their own device in cyan - and the two stay in step: tap a part in the
-    /// 3D view and its row lights up and scrolls into view.
+    /// The drawer comes back when Parts is tapped again or the explosion is dragged back to 0.
+    /// Double-tapping a part, in the list or on the model, isolates it; double-tapping it again,
+    /// or double-tapping empty space, shows everything. While isolated, an "Isolated · Fan rotor ✕"
+    /// chip stays at the top as a visible way out (the old CLEAR button is gone).
     ///
-    /// Layout: the drawer sits on the LEFT, above the corner ROOM button and clear of the Space
-    /// HUD's player badges on the right. There is deliberately no dark backdrop behind it - the
-    /// whole point is to watch the model highlight as you move down the list - so it closes from its
-    /// own X, or from the PARTS button that opens it, rather than by tapping away.
+    /// Picking a row goes through <see cref="ModelPartSelector.SelectByPath"/>, so it obeys the same
+    /// rules as tapping the model: the room's pick (the presenter's, or whoever holds Highlight) is
+    /// shared, anyone else's stays on their own phone.
     /// </summary>
     public partial class ModelPartsDrawerUI : MonoBehaviour
     {
         public static ModelPartsDrawerUI Instance { get; private set; }
 
-        // Rows past this are not built even when they pass the filter. 400 TMP rows on a phone is a
-        // visible stutter, and a list that long is browsed by filtering, not by scrolling.
-        private const int   MaxRows    = 150;
-        private const float RowHeight  = 52f;
-        private const float RowSpacing = 4f;
+        private const int   MaxRows    = 150;   // more than this is browsed by filtering, not scrolling
+        private const float RowHeight  = 104f;
+        private const float RowSpacing = 6f;
+        private const string SlotId    = "parts";
+        private const string NavId     = "parts";
 
-        [Header("Placement (screen fractions)")]
-        [Tooltip("The PARTS button. The default sits beside the corner ROOM button, above the " +
-                 "Leave / Catch Up row. Move it if it lands on one of SpaceScene's own controls.")]
-        [SerializeField] private Vector2 buttonAnchorMin = new Vector2(0.23f, 0.135f);
-        [SerializeField] private Vector2 buttonAnchorMax = new Vector2(0.46f, 0.205f);
+        private static readonly Color PanelColor = AuraTheme.A(AuraTheme.Indigo, 0.74f);
 
-        [Tooltip("The drawer itself. The default keeps the right half of the screen clear so the " +
-                 "model and the player badges stay visible while you read the list.")]
-        // Starts at 0.16, right of the V3 feature rail (SpaceSessionHUD, 0.02-0.14), so an open
-        // drawer never covers the rail's buttons.
-        [SerializeField] private Vector2 panelAnchorMin = new Vector2(0.16f, 0.22f);
-        [SerializeField] private Vector2 panelAnchorMax = new Vector2(0.64f, 0.84f);
-
-        private static readonly Color PresenterRowColor = new Color(0.60f, 0.48f, 0.06f, 0.95f); // gold
-        private static readonly Color LocalRowColor     = new Color(0.07f, 0.42f, 0.55f, 0.95f); // cyan
-        private static readonly Color RowColor          = new Color(0.14f, 0.16f, 0.22f, 0.90f);
-        private static readonly Color GroupLabelColor   = new Color(1f, 1f, 1f, 0.62f);
-
-        private GameObject      _panel;
-        private Button          _toggleButton;
-        private TextMeshProUGUI _toggleLabel;
-        private ScrollRect      _scroll;
-        private RectTransform   _content;
-        private TMP_InputField  _filter;
+        private Canvas _canvas;
+        private RectTransform _safe;
+        private AuraSlidePanel _drawer;
+        private Image _panelBg, _panelBorder;
+        private CanvasGroup _rest;               // everything but the explode block
+        private ScrollRect _scroll;
+        private RectTransform _content;
+        private TMP_InputField _filter;
         private TextMeshProUGUI _statusText;
+        private bool _faded;
+        private Coroutine _bgFade;
 
         private class RowView
         {
-            public string           path;
-            public int              index;   // position in the built list, for scrolling
-            public GameObject       go;
-            public Image            bg;
-            public TextMeshProUGUI  label;
-            public bool             isGroup;
+            public string path;
+            public int index;
+            public GameObject go;
+            public Image bg, accent;
+            public TextMeshProUGUI label;
+            public GameObject isoTag;
+            public bool isGroup;
+            public float lastClick = -10f;
         }
 
-        private readonly List<RowView>              _rows   = new List<RowView>();
+        private readonly List<RowView> _rows = new List<RowView>();
         private readonly Dictionary<string, RowView> _byPath = new Dictionary<string, RowView>();
 
         private List<ModelPartCatalog.Entry> _entries = new List<ModelPartCatalog.Entry>();
-        private int  _skipped = 0;
-        private bool _modelLoaded = false;
+        private int _skipped;
+        private bool _modelLoaded;
+        private bool _scrollOnNextChange;
 
-        // A pick made in the 3D view should pull its row into view; one made in the list, or by the
-        // presenter on another device, should not yank the list out from under the reader.
-        private bool _scrollOnNextChange = false;
+        private Slider _explodeSlider;
+        private TextMeshProUGUI _explodeValue, _explodeNote;
+        private bool _suppressExplodeCallback;
 
-        private Slider          _explodeSlider;
-        private TextMeshProUGUI _explodeLabel;
-        private bool            _suppressExplodeCallback;
+        private GameObject _isoChip;
+        private TextMeshProUGUI _isoChipText;
 
-        private Button          _isolateButton;
-        private TextMeshProUGUI _isolateLabel;
-        private Image           _isolateImage;
-        private ModelIsolator   _boundIsolator;
-
-        private ModelPartSelector          _boundSelector;
+        private ModelPartSelector _boundSelector;
         private SpaceInteractionController _boundSic;
-        private ModelExploder              _boundExploder;
+        private ModelExploder _boundExploder;
+        private ModelIsolator _boundIsolator;
+        private PartKnowledge _boundKnowledge;
 
-        // ── Lifecycle ──────────────────────────────────────────────────────────
+        // ── Lifecycle ──────────────────────────────────────────────────
 
         void Awake()
         {
@@ -109,17 +99,35 @@ namespace AuraSync.UI
         {
             StartCoroutine(BindWhenReady());
             StartCoroutine(BindKnowledgeWhenReady());
+            StartCoroutine(AddSlot());
             BindControls();
         }
 
         void Update() => TickControls();
 
-        private PartKnowledge _boundKnowledge;
+        void OnDestroy()
+        {
+            if (_boundSelector != null)
+            {
+                _boundSelector.OnSelectionChanged -= OnSelectionChanged;
+                _boundSelector.OnPartDoubleTapped -= OnPartDoubleTapped;
+            }
+            if (_boundSic != null) _boundSic.OnTap -= OnModelTapped;
+            if (_boundExploder != null) _boundExploder.OnAmountChanged -= RefreshExplodeRow;
+            if (_boundIsolator != null) _boundIsolator.OnIsolationChanged -= OnIsolationChanged;
+            if (_boundKnowledge != null) _boundKnowledge.OnChanged -= RebuildRows;
+            UnbindControls();
+            PanelNavigator.Remove(NavId);
+            if (Instance == this) Instance = null;
+        }
 
-        /// <summary>
-        /// The part knowledge file arrives a moment after the model (it is downloaded separately).
-        /// When it does, the rows switch from file names ("Object_6.1") to reviewed labels ("Fan rotor").
-        /// </summary>
+        private IEnumerator AddSlot()
+        {
+            while (SpaceSessionHUD.Instance == null) yield return null;
+            SpaceSessionHUD.Instance.AddTopLeftButton(SlotId, "Parts", AuraIcons.Parts, OnPartsButton);
+            SpaceSessionHUD.Instance.SetSlotVisible(SlotId, _modelLoaded);
+        }
+
         private IEnumerator BindKnowledgeWhenReady()
         {
             while (PartKnowledge.Instance == null) yield return null;
@@ -128,22 +136,12 @@ namespace AuraSync.UI
             RebuildRows();
         }
 
-        void OnDestroy()
-        {
-            if (_boundSelector != null) _boundSelector.OnSelectionChanged -= OnSelectionChanged;
-            if (_boundSic != null)      _boundSic.OnTap -= OnModelTapped;
-            if (_boundExploder != null) _boundExploder.OnAmountChanged -= RefreshExplodeRow;
-            if (_boundIsolator != null) _boundIsolator.OnIsolationChanged -= RefreshIsolateButton;
-            if (_boundKnowledge != null) _boundKnowledge.OnChanged -= RebuildRows;
-            UnbindControls();
-            if (Instance == this) Instance = null;
-        }
-
         private IEnumerator BindWhenReady()
         {
             while (ModelPartSelector.Instance == null) yield return null;
             _boundSelector = ModelPartSelector.Instance;
             _boundSelector.OnSelectionChanged += OnSelectionChanged;
+            _boundSelector.OnPartDoubleTapped += OnPartDoubleTapped;
 
             while (SpaceInteractionController.Instance == null) yield return null;
             _boundSic = SpaceInteractionController.Instance;
@@ -156,376 +154,234 @@ namespace AuraSync.UI
 
             while (ModelIsolator.Instance == null) yield return null;
             _boundIsolator = ModelIsolator.Instance;
-            _boundIsolator.OnIsolationChanged += RefreshIsolateButton;
-            RefreshIsolateButton();
+            _boundIsolator.OnIsolationChanged += OnIsolationChanged;
+            OnIsolationChanged();
         }
 
         /// <summary>Called by SpaceSceneManager once a model has loaded and been fitted.</summary>
         public void OnModelLoaded()
         {
             _modelLoaded = true;
-
-            Transform root = SpaceInteractionController.Instance != null
-                ? SpaceInteractionController.Instance.ModelRoot
-                : null;
-
+            Transform root = SpaceInteractionController.Instance != null ? SpaceInteractionController.Instance.ModelRoot : null;
             _entries = ModelPartCatalog.Build(root, out _skipped);
-
             if (_filter != null) _filter.SetTextWithoutNotify("");
             RebuildRows();
-
-            if (_toggleButton != null) _toggleButton.gameObject.SetActive(true);
-
-            // A new model means new parts; an open drawer would be showing the old ones.
-            SetOpen(false);
-
+            SpaceSessionHUD.Instance?.SetSlotVisible(SlotId, true);
+            SetOpen(false); // the open drawer would be showing the old model's parts
             Debug.Log($"[PartsDrawer] Catalogued {_entries.Count} parts" +
                       (_skipped > 0 ? $" ({_skipped} past the {ModelPartCatalog.MaxEntries} cap)" : ""));
         }
 
-        // ── Build ──────────────────────────────────────────────────────────────
+        // ── Build ──────────────────────────────────────────────────────
 
         private void BuildUI()
         {
-            Canvas canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 97; // above the Space HUD (95), below the room panel (100)
+            _safe = AuraViewer.CreateCanvas(transform, "PartsCanvas", 97, out _canvas); // above the HUD (95)
 
-            CanvasScaler scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
+            var panel = AuraKit.Rect(_safe, "Drawer");
+            panel.anchorMin = new Vector2(0, 0);
+            panel.anchorMax = new Vector2(0, 1);
+            panel.pivot = new Vector2(0, 0.5f);
+            panel.offsetMin = new Vector2(0, AuraViewer.BottomReserve);
+            panel.offsetMax = new Vector2(0, -AuraViewer.TopReserve);
+            panel.gameObject.AddComponent<DrawerWidth>();
 
-            gameObject.AddComponent<GraphicRaycaster>();
+            _panelBg = panel.gameObject.AddComponent<Image>();
+            _panelBg.sprite = AuraSprites.Rounded;
+            AuraSprites.SetRadius(_panelBg, AuraTheme.Radius + 10f);
+            _panelBg.color = PanelColor;
+            _panelBorder = AuraKit.Border(_panelBg, AuraTheme.A(AuraTheme.Slate, 0.7f), AuraTheme.Radius + 10f);
 
-            BuildToggleButton();
-            BuildPanel();
+            var v = AuraKit.VStack(panel, 22f);
+            v.padding = new RectOffset(40, 32, 34, 30);
+            v.childForceExpandHeight = false;
+
+            BuildExplodeBlock(panel);
+
+            // Everything below the slider fades together while exploding.
+            var rest = AuraKit.Rect(panel, "Rest");
+            AuraKit.Size(rest, -1, 200f, -1, 1f);
+            _rest = rest.gameObject.AddComponent<CanvasGroup>();
+            var rv = AuraKit.VStack(rest, 18f);
+            rv.childForceExpandHeight = false;
+
+            BuildControlsBox(rest);
+            _filter = BuildFilter(rest);
+            BuildList(rest);
+            _statusText = AuraKit.Text(rest, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
+            _statusText.richText = true;
+            AuraKit.Size(_statusText, -1, 40f);
+
+            // Slides in from the left edge (the y keeps the top/bottom reserves set above).
+            float y = panel.anchoredPosition.y;
+            _drawer = AuraSlidePanel.Attach(panel, new Vector2(0, y), new Vector2(-900f, y));
+
+            BuildIsolationChip();
         }
 
-        private void BuildToggleButton()
+        private void BuildExplodeBlock(RectTransform parent)
         {
-            GameObject go = new GameObject("PartsButton");
-            go.transform.SetParent(transform, false);
+            var block = AuraKit.Box(parent, "Explode", AuraTheme.A(AuraTheme.Ink, 0.55f), AuraTheme.Radius, true);
+            var bv = AuraKit.VStack(block, 2f);
+            bv.padding = new RectOffset(28, 28, 18, 14);
+            AuraKit.FitHeight(block);
 
-            RectTransform rt = go.AddComponent<RectTransform>();
-            rt.anchorMin = buttonAnchorMin;
-            rt.anchorMax = buttonAnchorMax;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
+            var head = AuraKit.Rect(block.transform, "Head");
+            AuraKit.HStack(head, 10f);
+            AuraKit.Size(head, -1, 44f);
+            AuraKit.Icon(head, AuraIcons.Explode, 38f, AuraTheme.Lavender);
+            var title = AuraKit.Text(head, "Explode", AuraTheme.SizeBody, AuraTheme.Text, AuraWeight.SemiBold);
+            AuraKit.Flex(title);
+            _explodeValue = AuraKit.Text(head, "0%", AuraTheme.SizeBody, AuraTheme.Lavender, AuraWeight.Bold,
+                                         TextAlignmentOptions.MidlineRight);
+            AuraKit.Size(_explodeValue, 140f);
 
-            Image img = go.AddComponent<Image>();
-            img.color = new Color(0.22f, 0.26f, 0.36f, 0.95f);
+            _explodeSlider = AuraWidgets.Slider(block.transform, 0f, OnExplodeChanged,
+                                                () => ModelExploder.Instance?.CommitInteraction(), 0f, 1f, 92f);
 
-            _toggleButton = go.AddComponent<Button>();
-            _toggleButton.onClick.AddListener(ToggleOpen);
+            var ticks = AuraKit.Rect(block.transform, "Ticks");
+            AuraKit.HStack(ticks, 0f);
+            AuraKit.Size(ticks, -1, 34f);
+            AuraKit.Flex(AuraKit.Text(ticks, "Together", AuraTheme.SizeCaption - 2f, AuraTheme.TextDim));
+            AuraKit.Flex(AuraKit.Text(ticks, "Apart", AuraTheme.SizeCaption - 2f, AuraTheme.TextDim,
+                                      AuraWeight.Regular, TextAlignmentOptions.MidlineRight));
 
-            ColorBlock cb = _toggleButton.colors;
-            cb.highlightedColor = new Color(0.32f, 0.38f, 0.50f);
-            cb.pressedColor     = new Color(0.16f, 0.19f, 0.26f);
-            _toggleButton.colors = cb;
-
-            _toggleLabel = MakeLabel(go.transform, "Label", "PARTS", 23, Color.white, TextAlignmentOptions.Center);
-            _toggleLabel.fontStyle = FontStyles.Bold;
-
-            go.SetActive(false); // nothing to list until a model loads
+            _explodeNote = AuraKit.Text(block.transform, "", AuraTheme.SizeCaption - 2f, AuraTheme.Lavender);
+            _explodeNote.gameObject.SetActive(false);
         }
 
-        private void BuildPanel()
+        private TMP_InputField BuildFilter(RectTransform parent)
         {
-            _panel = new GameObject("PartsPanel");
-            _panel.transform.SetParent(transform, false);
-
-            RectTransform rt = _panel.AddComponent<RectTransform>();
-            rt.anchorMin = panelAnchorMin;
-            rt.anchorMax = panelAnchorMax;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-
-            Image bg = _panel.AddComponent<Image>();
-            bg.color = new Color(0.07f, 0.09f, 0.13f, 0.96f);
-            bg.raycastTarget = true;
-            _panel.AddComponent<TouchBlocker>(); // the model must not rotate under the drawer
-
-            VerticalLayoutGroup vg = _panel.AddComponent<VerticalLayoutGroup>();
-            vg.padding            = new RectOffset(10, 10, 10, 10);
-            vg.spacing            = 8;
-            vg.childControlWidth  = true;
-            vg.childControlHeight = true;
-            vg.childForceExpandWidth  = true;
-            vg.childForceExpandHeight = false;
-
-            BuildHeader(_panel.transform);
-            BuildExplodeRow(_panel.transform);
-            BuildControlsBox(_panel.transform);
-            _filter = BuildFilterField(_panel.transform);
-            BuildList(_panel.transform);
-
-            _statusText = MakeLabel(_panel.transform, "Status", "", 19,
-                                    new Color(1f, 1f, 1f, 0.55f), TextAlignmentOptions.MidlineLeft);
-            AddLayout(_statusText.gameObject, height: 26f);
-
-            _panel.SetActive(false);
+            var f = AuraWidgets.Input(parent, "Filter parts", "", false, 112f, 40);
+            // A search icon at the start of the field.
+            var area = f.textViewport;
+            area.offsetMin = new Vector2(90, area.offsetMin.y);
+            var icon = AuraKit.Icon(f.transform, AuraIcons.Search, 42f, AuraTheme.TextDim);
+            icon.GetComponent<LayoutElement>().ignoreLayout = true;
+            AuraKit.Pin(icon.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(42, 42));
+            f.onValueChanged.AddListener(_ => RebuildRows());
+            return f;
         }
 
-        private void BuildHeader(Transform parent)
+        private void BuildList(RectTransform parent)
         {
-            GameObject row = new GameObject("Header");
-            row.transform.SetParent(parent, false);
-            AddLayout(row, height: 50f);
-
-            HorizontalLayoutGroup hg = row.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing            = 8;
-            hg.childAlignment     = TextAnchor.MiddleLeft;
-            hg.childControlWidth  = true;
-            hg.childControlHeight = true;
-            hg.childForceExpandWidth = false;
-
-            TextMeshProUGUI title = MakeLabel(row.transform, "Title", "PARTS", 22,
-                                              Color.white, TextAlignmentOptions.MidlineLeft);
-            title.fontStyle = FontStyles.Bold;
-            AddLayout(title.gameObject, flexWidth: 1f);
-
-            _isolateButton = MakeSmallButton(row.transform, "IsolateBtn", "ISOLATE",
-                                             IsolateIdleColor, OnIsolatePressed, width: 118f);
-            _isolateLabel  = _isolateButton.GetComponentInChildren<TextMeshProUGUI>();
-            _isolateImage  = _isolateButton.GetComponent<Image>();
-
-            MakeSmallButton(row.transform, "ClearBtn", "CLEAR", new Color(0.28f, 0.30f, 0.38f),
-                            OnClearPressed, width: 84f);
-            MakeSmallButton(row.transform, "CloseBtn", "X", new Color(0.45f, 0.14f, 0.14f),
-                            () => SetOpen(false), width: 50f);
+            var host = AuraKit.Rect(parent, "List");
+            AuraKit.Size(host, -1, 200f, -1, 1f);
+            _content = AuraWidgets.Scroll(host, out _scroll, RowSpacing);
+            _scroll.movementType = ScrollRect.MovementType.Clamped;
         }
 
-        // ── Exploded view ──────────────────────────────────────────────────────
-
-        /// <summary>
-        /// The explode slider lives in the drawer because this is the "model explorer": sliding the
-        /// parts apart and picking them by name are the same job - seeing what the model is made of.
-        /// </summary>
-        private void BuildExplodeRow(Transform parent)
+        private void BuildIsolationChip()
         {
-            GameObject row = new GameObject("ExplodeRow");
-            row.transform.SetParent(parent, false);
-            AddLayout(row, height: 44f);
-
-            HorizontalLayoutGroup hg = row.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing            = 8;
-            hg.childAlignment     = TextAnchor.MiddleLeft;
-            hg.childControlWidth  = true;
-            hg.childControlHeight = true;
-            hg.childForceExpandWidth = false;
-
-            _explodeLabel = MakeLabel(row.transform, "ExplodeLabel", "EXPLODE", 19,
-                                      new Color(1f, 1f, 1f, 0.75f), TextAlignmentOptions.MidlineLeft);
-            AddLayout(_explodeLabel.gameObject, flexWidth: 0f);
-            _explodeLabel.GetComponent<LayoutElement>().preferredWidth = 150f;
-
-            _explodeSlider = BuildSlider(row.transform);
-            AddLayout(_explodeSlider.gameObject, flexWidth: 1f);
+            var chip = AuraKit.Box(_safe, "Isolated", AuraTheme.A(AuraTheme.Ink, 0.9f), 34f, true);
+            AuraKit.Border(chip, AuraTheme.Lavender, 34f);
+            _isoChip = chip.gameObject;
+            AuraKit.Pin(chip.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+                        new Vector2(0, -(AuraViewer.TopReserve + 110f)), new Vector2(620, 84));
+            var h = AuraKit.HStack(chip, 12f, 0, TextAnchor.MiddleCenter);
+            h.padding = new RectOffset(28, 18, 0, 0);
+            _isoChipText = AuraKit.Text(chip.transform, "", AuraTheme.SizeSmall, AuraTheme.Text, AuraWeight.Regular);
+            _isoChipText.richText = true;
+            _isoChipText.enableWordWrapping = false;
+            AuraKit.Flex(_isoChipText);
+            AuraKit.Icon(chip.transform, AuraIcons.Close, 40f, AuraTheme.Lavender);
+            AuraKit.MakeButton(_isoChip, chip, () => ModelIsolator.Instance?.ShowAll());
+            _isoChip.SetActive(false);
         }
 
-        private Slider BuildSlider(Transform parent)
-        {
-            GameObject go = new GameObject("ExplodeSlider", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            go.SetActive(false); // configure before the Slider's OnEnable wires itself up
-
-            GameObject background = new GameObject("Background", typeof(RectTransform));
-            background.transform.SetParent(go.transform, false);
-            StretchHorizontalBar((RectTransform)background.transform, 0.32f);
-            Image bgImg = background.AddComponent<Image>();
-            bgImg.color = new Color(0.03f, 0.04f, 0.07f, 1f);
-
-            GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
-            fillArea.transform.SetParent(go.transform, false);
-            StretchHorizontalBar((RectTransform)fillArea.transform, 0.32f);
-
-            GameObject fill = new GameObject("Fill", typeof(RectTransform));
-            fill.transform.SetParent(fillArea.transform, false);
-            Image fillImg = fill.AddComponent<Image>();
-            fillImg.color = new Color(0.22f, 0.48f, 1.0f, 1f);
-
-            GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
-            handleArea.transform.SetParent(go.transform, false);
-            RectTransform hart = (RectTransform)handleArea.transform;
-            hart.anchorMin = Vector2.zero; hart.anchorMax = Vector2.one;
-            hart.offsetMin = Vector2.zero; hart.offsetMax = Vector2.zero;
-
-            GameObject handle = new GameObject("Handle", typeof(RectTransform));
-            handle.transform.SetParent(handleArea.transform, false);
-            ((RectTransform)handle.transform).sizeDelta = new Vector2(34f, 0f);
-            Image handleImg = handle.AddComponent<Image>();
-            handleImg.color = Color.white;
-
-            Slider slider = go.AddComponent<Slider>();
-            slider.fillRect      = (RectTransform)fill.transform;
-            slider.handleRect    = (RectTransform)handle.transform;
-            slider.targetGraphic = handleImg;
-            slider.direction     = Slider.Direction.LeftToRight;
-            slider.minValue      = 0f;
-            slider.maxValue      = 1f;
-            slider.value         = 0f;
-            slider.onValueChanged.AddListener(OnExplodeChanged);
-
-            // Letting go of the slider is when the presenter is asked whether to share the explosion.
-            go.AddComponent<PointerUpRelay>().Released += () => ModelExploder.Instance?.CommitInteraction();
-
-            go.SetActive(true);
-            return slider;
-        }
-
-        private static void StretchHorizontalBar(RectTransform rt, float thickness)
-        {
-            rt.anchorMin = new Vector2(0f, 0.5f - thickness * 0.5f);
-            rt.anchorMax = new Vector2(1f, 0.5f + thickness * 0.5f);
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-        }
+        // ── Explode ────────────────────────────────────────────────────
 
         private void OnExplodeChanged(float value)
         {
             if (_suppressExplodeCallback) return;
             ModelExploder.Instance?.SetAmount(value);
             RefreshExplodeRow();
+
+            // Dragging the slider out fades the drawer so the explosion is fully visible;
+            // dragging it back to 0 brings the drawer back.
+            SetFaded(value > 0.001f);
         }
 
-        /// <summary>Follows the exploder, including when the presenter is the one driving it.</summary>
+        /// <summary>Follows the exploder, including when someone else drives it for the room.</summary>
         private void RefreshExplodeRow()
         {
-            if (_explodeSlider == null || _explodeLabel == null) return;
-
+            if (_explodeSlider == null) return;
             ModelExploder exploder = ModelExploder.Instance;
-            bool usable = exploder != null && exploder.CanExplode && ModelExploder.LocalPlayerMayExplode;
-
-            _explodeSlider.interactable = usable;
+            bool can = exploder != null && exploder.CanExplode;
+            bool may = can && ModelExploder.LocalPlayerMayExplode;
+            _explodeSlider.interactable = may;
 
             if (exploder != null && !Mathf.Approximately(_explodeSlider.value, exploder.Amount))
             {
-                // Writing the value back would otherwise re-enter OnExplodeChanged and rebroadcast.
                 _suppressExplodeCallback = true;
                 _explodeSlider.SetValueWithoutNotify(exploder.Amount);
                 _suppressExplodeCallback = false;
             }
+            _explodeValue.text = can ? $"{Mathf.RoundToInt((exploder != null ? exploder.Amount : 0f) * 100f)}%" : "—";
 
-            _explodeLabel.text = (exploder == null || !exploder.CanExplode)
-                ? "EXPLODE n/a"
-                : $"EXPLODE {Mathf.RoundToInt(exploder.Amount * 100f)}%";
-
-            // A presenter who handed Explode out watches the slider move under the holder's hand.
-            if (exploder != null && exploder.CanExplode && !ModelExploder.LocalPlayerMayExplode)
-                _explodeLabel.text += "\n<size=70%>" + NoTags(AuraSync.Networking.ControlOwnership.HolderName(AuraSync.Networking.Control.Explode)) + "</size>";
+            string note = !can ? "This model doesn't come apart."
+                        : !may ? $"{NoTags(Networking.ControlOwnership.HolderName(Networking.Control.Explode))} drives Explode"
+                        : "";
+            _explodeNote.text = note;
+            _explodeNote.gameObject.SetActive(note.Length > 0);
         }
 
-        private TMP_InputField BuildFilterField(Transform parent)
+        /// <summary>Fades everything but the explode block (and lets touches through to the model).</summary>
+        private void SetFaded(bool faded)
         {
-            GameObject go = new GameObject("Filter");
-            go.transform.SetParent(parent, false);
-
-            // Built inactive: TMP_InputField wires itself to its text parts in OnEnable, which on a
-            // live GameObject would run during AddComponent, before those parts are assigned below.
-            go.SetActive(false);
-
-            AddLayout(go, height: 54f);
-
-            Image bg = go.AddComponent<Image>();
-            bg.color = new Color(0.03f, 0.04f, 0.07f, 1f);
-
-            GameObject area = new GameObject("TextArea");
-            area.transform.SetParent(go.transform, false);
-            RectTransform art = area.AddComponent<RectTransform>();
-            art.anchorMin = Vector2.zero;
-            art.anchorMax = Vector2.one;
-            art.offsetMin = new Vector2(12f, 4f);
-            art.offsetMax = new Vector2(-12f, -4f);
-            area.AddComponent<RectMask2D>();
-
-            TextMeshProUGUI placeholder = MakeLabel(area.transform, "Placeholder", "Filter parts...", 20,
-                                                    new Color(1f, 1f, 1f, 0.32f), TextAlignmentOptions.MidlineLeft);
-            TextMeshProUGUI text = MakeLabel(area.transform, "Text", "", 20,
-                                             Color.white, TextAlignmentOptions.MidlineLeft);
-
-            // The input field is added last: it wires itself up to the parts above on enable.
-            TMP_InputField field = go.AddComponent<TMP_InputField>();
-            field.textViewport  = art;
-            field.textComponent = text;
-            field.placeholder   = placeholder;
-            field.lineType      = TMP_InputField.LineType.SingleLine;
-            field.onValueChanged.AddListener(_ => RebuildRows());
-
-            go.SetActive(true);
-            return field;
+            if (_faded == faded) return;
+            _faded = faded;
+            float a = faded ? 0f : 1f;
+            AuraMotion.Fade(_rest, a, 0.2f);
+            _rest.blocksRaycasts = !faded;
+            _rest.interactable = !faded;
+            _panelBg.raycastTarget = !faded;
+            if (_bgFade != null) StopCoroutine(_bgFade);
+            _bgFade = StartCoroutine(FadeBackground(faded ? 0f : PanelColor.a, faded ? 0f : 0.7f));
         }
 
-        private void BuildList(Transform parent)
+        private IEnumerator FadeBackground(float bgA, float borderA)
         {
-            GameObject scrollGo = new GameObject("Scroll");
-            scrollGo.transform.SetParent(parent, false);
-            AddLayout(scrollGo, height: 160f, flexHeight: 1f); // takes whatever the panel has left
-
-            _scroll = scrollGo.AddComponent<ScrollRect>();
-            _scroll.horizontal        = false;
-            _scroll.vertical          = true;
-            _scroll.movementType      = ScrollRect.MovementType.Clamped;
-            _scroll.scrollSensitivity = 28f;
-
-            GameObject viewport = new GameObject("Viewport");
-            viewport.transform.SetParent(scrollGo.transform, false);
-            RectTransform vrt = viewport.AddComponent<RectTransform>();
-            vrt.anchorMin = Vector2.zero;
-            vrt.anchorMax = Vector2.one;
-            vrt.sizeDelta = Vector2.zero;
-            vrt.pivot     = new Vector2(0f, 1f);
-
-            // A graphic is needed for the viewport to catch the drag that scrolls the list.
-            Image vImg = viewport.AddComponent<Image>();
-            vImg.color = new Color(0f, 0f, 0f, 0.01f);
-            viewport.AddComponent<RectMask2D>();
-
-            GameObject content = new GameObject("Content");
-            content.transform.SetParent(viewport.transform, false);
-            _content = content.AddComponent<RectTransform>();
-            _content.anchorMin = new Vector2(0f, 1f);
-            _content.anchorMax = new Vector2(1f, 1f);
-            _content.pivot     = new Vector2(0f, 1f);
-            _content.sizeDelta = new Vector2(0f, 0f);
-
-            VerticalLayoutGroup vg = content.AddComponent<VerticalLayoutGroup>();
-            vg.spacing               = RowSpacing; // ScrollRowIntoView assumes this pitch
-            vg.childControlWidth     = true;
-            vg.childControlHeight    = true;
-            vg.childForceExpandWidth = true;
-            vg.childForceExpandHeight = false;
-
-            ContentSizeFitter csf = content.AddComponent<ContentSizeFitter>();
-            csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-
-            _scroll.viewport = vrt;
-            _scroll.content  = _content;
+            Color b0 = _panelBg.color, r0 = _panelBorder.color;
+            float t = 0f;
+            while (t < 1f)
+            {
+                t += Time.unscaledDeltaTime / 0.2f;
+                float e = AuraMotion.Ease(t);
+                _panelBg.color = AuraTheme.A(b0, Mathf.Lerp(b0.a, bgA, e));
+                _panelBorder.color = AuraTheme.A(r0, Mathf.Lerp(r0.a, borderA, e));
+                yield return null;
+            }
         }
 
-        // ── Rows ───────────────────────────────────────────────────────────────
+        // ── Rows ───────────────────────────────────────────────────────
 
         private void RebuildRows()
         {
-            if (_content == null) return; // the filter can fire before the list exists
+            if (_content == null) return;
 
-            foreach (RowView r in _rows)
-                if (r.go != null) Destroy(r.go);
+            AuraKit.ClearChildren(_content);
             _rows.Clear();
             _byPath.Clear();
 
             string filter = _filter != null ? _filter.text.Trim() : "";
             int matched = 0;
 
-            foreach (ModelPartCatalog.Entry e in _entries)
+            // Unlabelled containers at the top of the tree ("Sketchfab_model",
+            // "jet_engine_remaster.obj…") are file plumbing, not parts: their rows are left out
+            // (their children still show), and indentation starts from the first real level.
+            int baseDepth = int.MaxValue;
+            foreach (var e in _entries) if (!IsPlumbing(e)) { baseDepth = Mathf.Min(baseDepth, e.depth); }
+            if (baseDepth == int.MaxValue) baseDepth = 0;
+
+            foreach (var e in _entries)
             {
-                // Searches the label and its other names too: "fan" finds Object_6.1.
+                if (filter.Length == 0 && IsPlumbing(e)) continue;
                 if (filter.Length > 0 && !PartNames.Matches(e.path, e.name, filter)) continue;
-
                 matched++;
-                if (_rows.Count >= MaxRows) continue; // keep counting, stop building
+                if (_rows.Count >= MaxRows) continue;
 
-                RowView row = BuildRow(e, filter.Length > 0);
+                RowView row = BuildRow(e, filter.Length > 0 ? 0 : Mathf.Max(0, e.depth - baseDepth));
                 row.index = _rows.Count;
                 _rows.Add(row);
                 _byPath[e.path] = row;
@@ -533,199 +389,200 @@ namespace AuraSync.UI
 
             UpdateStatus(matched, filter);
             RefreshRowColors();
-
-            if (_scroll != null) _scroll.verticalNormalizedPosition = 1f; // back to the top
+            if (_scroll != null) _scroll.verticalNormalizedPosition = 1f;
         }
 
-        private RowView BuildRow(ModelPartCatalog.Entry e, bool filtering)
+        private static bool IsPlumbing(ModelPartCatalog.Entry e) =>
+            !e.hasMesh && e.depth <= 1 && PartNames.Display(e.path, e.name) == e.name;
+
+        private RowView BuildRow(ModelPartCatalog.Entry e, int level)
         {
-            GameObject go = new GameObject("Row");
-            go.transform.SetParent(_content, false);
+            var bg = AuraKit.Box(_content, "Row", new Color(0, 0, 0, 0), AuraTheme.Radius - 12f, true);
+            AuraKit.Size(bg, -1, RowHeight);
 
-            Image bg = go.AddComponent<Image>();
-            bg.color = RowColor;
+            var accent = AuraKit.Box(bg.transform, "Accent", AuraTheme.Lavender, 4f);
+            AuraKit.Pin(accent.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0), new Vector2(8, 60));
+            accent.enabled = false;
 
-            Button btn = go.AddComponent<Button>();
-            btn.targetGraphic = bg;
-            btn.transition    = Selectable.Transition.None; // rows are coloured by selection, not state
-
-            string path = e.path; // captured per row, not the loop variable
-            btn.onClick.AddListener(() => OnRowPressed(path));
-
-            AddLayout(go, height: RowHeight);
-
-            // Indentation shows the hierarchy. While filtering, matches come from all over the tree,
-            // so indenting them by depth would only look arbitrary.
-            float indent = filtering ? 12f : 12f + Mathf.Min(e.depth, 6) * 18f;
-
-            // The reviewed label when there is one, with the file's own name after it in grey.
             string shown = PartNames.Display(e.path, e.name);
-            string text = shown == e.name
-                ? NoTags(e.name)
-                : $"{NoTags(shown)}  <size=80%><color=#7A8499>{NoTags(e.name)}</color></size>";
-
-            TextMeshProUGUI label = MakeLabel(go.transform, "Label", text, 21,
-                                             e.hasMesh ? Color.white : GroupLabelColor,
-                                             TextAlignmentOptions.MidlineLeft);
-            RectTransform lrt = label.rectTransform;
-            lrt.offsetMin = new Vector2(indent, 0f);
-            lrt.offsetMax = new Vector2(-10f, 0f);
+            var label = AuraKit.Text(bg.transform, NoTags(shown), AuraTheme.SizeBody, AuraTheme.Text,
+                                     e.hasMesh ? AuraWeight.SemiBold : AuraWeight.Regular);
             label.enableWordWrapping = false;
             label.overflowMode = TextOverflowModes.Ellipsis;
+            float indent = 26f + Mathf.Min(level, 5) * 34f;
+            AuraKit.Fill(label.rectTransform, indent, 0, 150, 0);
 
-            return new RowView { path = path, go = go, bg = bg, label = label, isGroup = !e.hasMesh };
+            var tag = AuraKit.Text(bg.transform, "isolated", AuraTheme.SizeCaption - 2f, AuraTheme.Ink, AuraWeight.Bold,
+                                   TextAlignmentOptions.MidlineRight);
+            AuraKit.Fill(tag.rectTransform, 0, 0, 20, 0);
+            tag.gameObject.SetActive(false);
+
+            var row = new RowView { path = e.path, go = bg.gameObject, bg = bg, accent = accent, label = label,
+                                    isoTag = tag.gameObject, isGroup = !e.hasMesh };
+            AuraKit.MakeButton(bg.gameObject, bg, () => OnRowPressed(row));
+            return row;
         }
 
         private void UpdateStatus(int matched, string filter)
         {
             if (_statusText == null) return;
-
-            if (_entries.Count == 0)
-            {
-                _statusText.text = "This model reports no named parts.";
-                return;
-            }
+            if (_entries.Count == 0) { _statusText.text = "This model has no named parts."; return; }
 
             string text;
             if (filter.Length > 0)
-                text = matched == 0 ? $"No part matches \"{filter}\"." : $"{matched} of {_entries.Count} match";
+                text = matched == 0 ? $"No part matches \"{NoTags(filter)}\"." : $"{matched} of {_entries.Count} match";
             else
-                text = $"{_entries.Count} parts";
-
-            if (matched > MaxRows) text += $" - showing {MaxRows}, filter to narrow";
-            if (filter.Length == 0 && _skipped > 0) text += $" (+{_skipped} not listed)";
-
+                text = "Tap to select · <color=#9894C4>double-tap to isolate</color>";
+            if (matched > MaxRows) text += $" · showing {MaxRows}";
             _statusText.text = text;
+
+            if (_filter != null && _filter.placeholder is TextMeshProUGUI ph)
+                ph.text = $"Filter {_entries.Count} parts";
         }
 
-        /// <summary>Tints each row by what is selected: gold for the room's pick, cyan for this device's.</summary>
+        /// <summary>
+        /// The room's pick (presenter, or whoever holds Highlight) is a solid lavender row; this
+        /// phone's own pick is a lavender tint with an accent bar. The isolated part is tagged.
+        /// </summary>
         private void RefreshRowColors()
         {
             string presenterPath = _boundSelector != null ? _boundSelector.PresenterPath : "";
-            string localPath     = _boundSelector != null ? _boundSelector.LocalPath : "";
+            string localPath = _boundSelector != null ? _boundSelector.LocalPath : "";
+            string iso = ModelIsolator.Instance != null ? ModelIsolator.Instance.IsolatedPath : "";
 
             foreach (RowView r in _rows)
             {
                 if (r.bg == null) continue;
+                bool room = !string.IsNullOrEmpty(presenterPath) && r.path == presenterPath;
+                bool mine = !string.IsNullOrEmpty(localPath) && r.path == localPath;
+                bool isolated = !string.IsNullOrEmpty(iso) && r.path == iso;
 
-                bool isPresenter = !string.IsNullOrEmpty(presenterPath) && r.path == presenterPath;
-                bool isLocal     = !string.IsNullOrEmpty(localPath)     && r.path == localPath;
-
-                r.bg.color = isPresenter ? PresenterRowColor
-                           : isLocal     ? LocalRowColor
-                                         : RowColor;
-
-                if (r.label != null)
-                {
-                    bool selected = isPresenter || isLocal;
-                    r.label.color = selected ? Color.white
-                                             : (r.isGroup ? GroupLabelColor : Color.white);
-                    r.label.fontStyle = selected ? FontStyles.Bold : FontStyles.Normal;
-                }
+                r.bg.color = room ? AuraTheme.Lavender
+                           : mine ? AuraTheme.A(AuraTheme.Lavender, 0.22f)
+                           : new Color(0, 0, 0, 0);
+                r.accent.enabled = mine && !room;
+                r.label.color = room ? AuraTheme.Ink : (r.isGroup ? AuraTheme.TextDim : AuraTheme.Text);
+                r.isoTag.SetActive(isolated);
+                var tagText = r.isoTag.GetComponent<TextMeshProUGUI>();
+                if (tagText != null) tagText.color = room ? AuraTheme.Ink : AuraTheme.Lavender;
             }
         }
 
-        // ── Open / close ───────────────────────────────────────────────────────
+        // ── Open / close ───────────────────────────────────────────────
 
-        private const string NavId = "parts";
-
-        /// <summary>
-        /// No PARTS button during the reassembly challenge: exploding or isolating mid-game would pull
-        /// the parts out from under the player.
-        /// </summary>
+        /// <summary>No Parts during the reassembly challenge: exploding or isolating would pull pieces from under the player.</summary>
         void LateUpdate()
         {
-            if (_toggleButton == null || !_modelLoaded) return;
-            bool hide = AuraSync.Challenge.ReassemblyGame.IsActive;
-            if (_toggleButton.gameObject.activeSelf != hide) return;
-            _toggleButton.gameObject.SetActive(!hide);
-            if (hide) SetOpen(false);
+            if (!_modelLoaded) return;
+            bool game = AuraSync.Challenge.ReassemblyGame.IsActive;
+            var hud = SpaceSessionHUD.Instance;
+            if (hud != null) hud.SetSlotVisible(SlotId, !game);
+            if (game && IsOpen) SetOpen(false);
         }
 
-        public bool IsOpen => _panel != null && _panel.activeSelf;
+        public bool IsOpen => _drawer != null && _drawer.IsShown;
 
         public void ToggleOpen() => SetOpen(!IsOpen);
 
+        /// <summary>The Parts button: brings a faded drawer back, otherwise opens or closes it.</summary>
+        private void OnPartsButton()
+        {
+            if (IsOpen && _faded) { SetFaded(false); return; }
+            ToggleOpen();
+        }
+
         public void SetOpen(bool open)
         {
-            if (_panel == null) return;
+            if (_drawer == null) return;
             if (open && !_modelLoaded) return;
-
-            if (open) PartNotesPanelUI.Instance?.CloseList(); // the notes list uses the same spot
-            if (open) SectionCutUI.Instance?.CloseToolbar();  // and the section toolbar overlaps it
-            if (open) SimulationPanelUI.Instance?.Hide();     // so does the simulation panel (it keeps running)
-            _panel.SetActive(open);
-            if (_toggleLabel != null) _toggleLabel.text = open ? "CLOSE" : "PARTS";
-
-            // Back (on screen or the device's) closes the drawer when it is the top panel.
-            if (open) PanelNavigator.Push(NavId, this, () => SetOpen(false));
-            else      PanelNavigator.Remove(NavId);
+            if (open == IsOpen) return;
 
             if (open)
             {
+                ViewerPanels.Opened(NavId, () => SetOpen(false));
+                PanelNavigator.Push(NavId, this, () => SetOpen(false));
+                SetFaded(false);
                 RefreshRowColors();
                 RefreshExplodeRow();
-                RefreshIsolateButton();
                 RefreshControls();
+                _drawer.Show();
                 ScrollSelectionIntoView();
+            }
+            else
+            {
+                _drawer.Hide();
+                ViewerPanels.Closed(NavId);
+                PanelNavigator.Remove(NavId);
+                if (_filter != null && _filter.isFocused) _filter.DeactivateInputField();
             }
         }
 
-        // ── Isolate ────────────────────────────────────────────────────────────
+        // ── Isolate ────────────────────────────────────────────────────
 
-        private static readonly Color IsolateIdleColor   = new Color(0.28f, 0.30f, 0.38f, 1f);
-        private static readonly Color IsolateActiveColor = new Color(0.20f, 0.52f, 0.42f, 1f);
-
-        /// <summary>The part isolate would act on: this device's own pick, else the presenter's.</summary>
+        /// <summary>The part isolate acts on: this phone's own pick, else the room's.</summary>
         private string SelectionForIsolate()
         {
             if (_boundSelector == null) return "";
-
             string path = _boundSelector.LocalPath;
             return string.IsNullOrEmpty(path) ? _boundSelector.PresenterPath : path;
         }
 
-        private void OnIsolatePressed()
+        /// <summary>
+        /// Double tap: isolate that part; the isolated part again (or anything inside it), or empty
+        /// space, shows everything.
+        /// </summary>
+        private void ToggleIsolation(string path)
         {
-            ModelIsolator isolator = ModelIsolator.Instance;
-            if (isolator == null) return;
+            var iso = ModelIsolator.Instance;
+            if (iso == null || AuraSync.Challenge.ReassemblyGame.IsActive) return;
 
-            if (isolator.IsActive) isolator.ShowAll();
-            else                   isolator.Isolate(SelectionForIsolate());
-
-            RefreshIsolateButton();
+            if (string.IsNullOrEmpty(path))
+            {
+                if (iso.IsActive) iso.ShowAll();
+                return;
+            }
+            bool sameOrInside = iso.IsActive && (path == iso.IsolatedPath || path.StartsWith(iso.IsolatedPath + "/"));
+            if (sameOrInside) iso.ShowAll();
+            else iso.Isolate(path);
         }
 
-        private void RefreshIsolateButton()
+        private void OnPartDoubleTapped(string path) => ToggleIsolation(path);
+
+        private void OnIsolationChanged()
         {
-            if (_isolateButton == null) return;
-
-            ModelIsolator isolator = ModelIsolator.Instance;
-            bool active = isolator != null && isolator.IsActive;
-
-            // Nothing picked means nothing to isolate; the way out stays available regardless.
-            // A presenter who handed Isolate out cannot use it until they take it back.
-            _isolateButton.interactable = ModelIsolator.LocalPlayerMayIsolate &&
-                                          (active || !string.IsNullOrEmpty(SelectionForIsolate()));
-
-            if (_isolateLabel != null) _isolateLabel.text  = active ? "SHOW ALL" : "ISOLATE";
-            if (_isolateImage != null) _isolateImage.color = active ? IsolateActiveColor : IsolateIdleColor;
+            RefreshRowColors();
+            var iso = ModelIsolator.Instance;
+            bool active = iso != null && iso.IsActive;
+            if (_isoChip == null) return;
+            if (active)
+            {
+                string name = "";
+                if (_byPath.TryGetValue(iso.IsolatedPath, out RowView r) && r.label != null) name = r.label.text;
+                if (string.IsNullOrEmpty(name))
+                    foreach (var e in _entries) if (e.path == iso.IsolatedPath) { name = PartNames.Display(e.path, e.name); break; }
+                _isoChipText.text = $"<color=#A9A8CC>Isolated ·</color> <b>{NoTags(name)}</b>";
+            }
+            _isoChip.SetActive(active);
         }
 
-        // ── Events ─────────────────────────────────────────────────────────────
+        // ── Events ─────────────────────────────────────────────────────
 
-        private void OnRowPressed(string path)
+        private void OnRowPressed(RowView row)
         {
-            // Same path as tapping the part in the 3D view, including the toggle-off on re-pick.
-            _boundSelector?.SelectByPath(path);
+            float now = Time.unscaledTime;
+            bool isDouble = now - row.lastClick < 0.35f;
+            row.lastClick = isDouble ? -10f : now;
+
+            if (isDouble)
+            {
+                ToggleIsolation(row.path);
+                // The first tap toggled the selection; a double tap leaves the part selected.
+                if (_boundSelector != null && _boundSelector.OwnPath != row.path) _boundSelector.SelectByPath(row.path);
+                return;
+            }
+            _boundSelector?.SelectByPath(row.path);
         }
 
-        private void OnClearPressed()
-        {
-            _boundSelector?.ClearSelection();
-        }
-
-        /// <summary>A tap landed on the model itself; its row should come into view.</summary>
         private void OnModelTapped(Vector2 screenPos)
         {
             if (IsOpen) _scrollOnNextChange = true;
@@ -735,10 +592,12 @@ namespace AuraSync.UI
         {
             RefreshRowColors();
 
-            // Picking a different part while isolated moves the isolation to it, rather than making
-            // you leave isolation and come back for every part you want to look at.
-            ModelIsolator.Instance?.Reapply(SelectionForIsolate());
-            RefreshIsolateButton();
+            // While isolated, picking a different part moves the isolation to it. Clearing the
+            // selection (or a double tap in progress) does not end isolation: that is the double
+            // tap's or the chip's job.
+            string sel = SelectionForIsolate();
+            if (!ModelPartSelector.InDoubleTap && !string.IsNullOrEmpty(sel))
+                ModelIsolator.Instance?.Reapply(sel);
 
             if (_scrollOnNextChange)
             {
@@ -750,103 +609,41 @@ namespace AuraSync.UI
         private void ScrollSelectionIntoView()
         {
             if (_boundSelector == null) return;
-
-            // This device's own pick first; a presenter has only the shared one.
             string path = _boundSelector.LocalPath;
             if (string.IsNullOrEmpty(path)) path = _boundSelector.PresenterPath;
             if (string.IsNullOrEmpty(path)) return;
-
             if (_byPath.TryGetValue(path, out RowView row)) ScrollRowIntoView(row);
         }
 
         private void ScrollRowIntoView(RowView row)
         {
             if (_scroll == null || row == null || _rows.Count == 0) return;
-
-            Canvas.ForceUpdateCanvases(); // the viewport has no height until layout has run
-
+            Canvas.ForceUpdateCanvases();
             float viewportHeight = _scroll.viewport != null ? _scroll.viewport.rect.height : 0f;
             if (viewportHeight <= 1f) return;
 
-            // Every row is the same height, so its offset is arithmetic - no need to read back
-            // positions the layout may not have written yet.
-            float pitch        = RowHeight + RowSpacing;
+            float pitch = RowHeight + RowSpacing;
             float contentHeight = _rows.Count * pitch - RowSpacing;
-            float scrollable    = contentHeight - viewportHeight;
-            if (scrollable <= 1f) return; // the whole list already fits
+            float scrollable = contentHeight - viewportHeight;
+            if (scrollable <= 1f) return;
 
-            // Park the row a little below the top edge rather than flush against it.
             float desired = Mathf.Clamp(row.index * pitch - viewportHeight * 0.35f, 0f, scrollable);
             _scroll.verticalNormalizedPosition = 1f - (desired / scrollable);
         }
 
-        // ── UI helpers ─────────────────────────────────────────────────────────
-
-        private static TextMeshProUGUI MakeLabel(Transform parent, string name, string text, float size,
-                                                 Color color, TextAlignmentOptions align)
-        {
-            GameObject go = new GameObject(name);
-            go.transform.SetParent(parent, false);
-
-            RectTransform rt = go.AddComponent<RectTransform>();
-            rt.anchorMin = Vector2.zero;
-            rt.anchorMax = Vector2.one;
-            rt.offsetMin = Vector2.zero;
-            rt.offsetMax = Vector2.zero;
-
-            TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
-            tmp.text      = text;
-            tmp.fontSize  = size;
-            tmp.color     = color;
-            tmp.alignment = align;
-            tmp.raycastTarget = false;
-
-            return tmp;
-        }
-
-        private Button MakeSmallButton(Transform parent, string name, string label, Color color,
-                                       UnityEngine.Events.UnityAction onClick, float width)
-        {
-            GameObject go = new GameObject(name);
-            go.transform.SetParent(parent, false);
-
-            Image img = go.AddComponent<Image>();
-            img.color = color;
-
-            Button btn = go.AddComponent<Button>();
-            btn.onClick.AddListener(onClick);
-
-            LayoutElement le = go.AddComponent<LayoutElement>();
-            le.minWidth        = width;
-            le.preferredWidth  = width;
-            le.minHeight       = 44f;
-
-            TextMeshProUGUI tmp = MakeLabel(go.transform, "Label", label, 21, Color.white,
-                                            TextAlignmentOptions.Center);
-            tmp.fontStyle = FontStyles.Bold;
-
-            // The isolate button swaps between ISOLATE and the longer SHOW ALL, so let the text
-            // shrink to fit rather than clip.
-            tmp.enableAutoSizing = true;
-            tmp.fontSizeMin = 13f;
-            tmp.fontSizeMax = 21f;
-
-            return btn;
-        }
-
         private static string NoTags(string s) => string.IsNullOrEmpty(s) ? "" : s.Replace("<", "<noparse><</noparse>");
+    }
 
-        private static void AddLayout(GameObject go, float height = 0f, float flexHeight = 0f,
-                                      float flexWidth = 0f)
+    /// <summary>The drawer is two-thirds of the screen wide, within comfortable limits.</summary>
+    public class DrawerWidth : MonoBehaviour
+    {
+        void LateUpdate()
         {
-            // A bare GameObject starts with a plain Transform. Layout only means anything on a
-            // RectTransform, and relying on some later Graphic to convert it is too easy to break.
-            if (!(go.transform is RectTransform)) go.AddComponent<RectTransform>();
-
-            LayoutElement le = go.GetComponent<LayoutElement>() ?? go.AddComponent<LayoutElement>();
-            if (height > 0f)     { le.minHeight = height; le.preferredHeight = height; }
-            if (flexHeight > 0f) le.flexibleHeight = flexHeight;
-            if (flexWidth > 0f)  le.flexibleWidth  = flexWidth;
+            var rt = (RectTransform)transform;
+            var parent = rt.parent as RectTransform;
+            if (parent == null) return;
+            float w = Mathf.Clamp(parent.rect.width * 0.68f, 620f, 820f);
+            if (!Mathf.Approximately(rt.sizeDelta.x, w)) rt.sizeDelta = new Vector2(w, rt.sizeDelta.y);
         }
     }
 }

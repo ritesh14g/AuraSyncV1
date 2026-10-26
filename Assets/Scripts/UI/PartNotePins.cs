@@ -8,8 +8,8 @@ using AuraSync.Space;
 namespace AuraSync.UI
 {
     /// <summary>
-    /// Draws part notes on the model (V3 Phase 5): a small diamond in the note's colour on its exact
-    /// spot, with the first few words beside it. Tapping either opens the note.
+    /// Draws part notes on the model (V3 Phase 5): a round dot in the note's colour on its exact
+    /// spot, with the first few words in a small pill beside it. Tapping either opens the note.
     ///
     /// Pins are screen-space buttons placed every frame from the note's spot in its part's own
     /// coordinates, rather than objects inside the model. Nothing is added to the model's
@@ -30,14 +30,13 @@ namespace AuraSync.UI
         {
             public GameObject      go;
             public RectTransform   rt;
-            public Image           diamond;
+            public Image           dot;
             public GameObject      labelGo;
             public TextMeshProUGUI label;
             public CanvasGroup     group;
             public string          id;
         }
 
-        private Canvas _canvas;
         private RectTransform _pinLayer;
         private readonly Dictionary<string, Pin> _pins = new Dictionary<string, Pin>();
         private List<PartNote> _notes = new List<PartNote>();
@@ -77,9 +76,9 @@ namespace AuraSync.UI
             {
                 keep.Add(n.id);
                 if (!_pins.TryGetValue(n.id, out Pin p)) { p = MakePin(n.id); _pins[n.id] = p; }
-                p.diamond.color = n.Color;
+                p.dot.color = n.Color;
                 string t = (n.text ?? "").Replace("\n", " ");
-                p.label.text = Esc(t.Length > LabelChars ? t.Substring(0, LabelChars).TrimEnd() + "..." : t);
+                p.label.text = Esc(t.Length > LabelChars ? t.Substring(0, LabelChars).TrimEnd() + "…" : t);
             }
 
             var drop = new List<string>();
@@ -87,7 +86,7 @@ namespace AuraSync.UI
             foreach (string id in drop) { Destroy(_pins[id].go); _pins.Remove(id); }
         }
 
-        // ── Every frame: where each pin goes ───────────────────────────────────
+        // ── Every frame: where each pin goes ───────────────────────────
 
         void LateUpdate()
         {
@@ -145,7 +144,7 @@ namespace AuraSync.UI
             if (n != null) PartNotesPanelUI.Instance?.ShowCard(n);
         }
 
-        // ── Placing banner ─────────────────────────────────────────────────────
+        // ── Placing banner ─────────────────────────────────────────────
 
         private void RefreshBanner()
         {
@@ -155,25 +154,17 @@ namespace AuraSync.UI
             else PanelNavigator.Remove("note-placing");
         }
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            _canvas = gameObject.AddComponent<Canvas>();
-            _canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            _canvas.sortingOrder = 94; // under the HUD (95): its buttons always win over a pin
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            // Under the HUD (95): its buttons always win over a pin.
+            var canvas = AuraKit.CreateCanvas(transform, "NotePins", 94);
+            _pinLayer = AuraKit.Fill(AuraKit.Rect(canvas.transform, "Pins"));
 
-            _pinLayer = new GameObject("Pins", typeof(RectTransform)).GetComponent<RectTransform>();
-            _pinLayer.SetParent(transform, false);
-            _pinLayer.anchorMin = Vector2.zero; _pinLayer.anchorMax = Vector2.one;
-            _pinLayer.offsetMin = _pinLayer.offsetMax = Vector2.zero;
-
-            BuildBanner();
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
+            BuildBanner(safe);
         }
 
         private Pin MakePin(string id)
@@ -183,7 +174,7 @@ namespace AuraSync.UI
             var rt = (RectTransform)go.transform;
             rt.anchorMin = rt.anchorMax = Vector2.zero;
             rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.sizeDelta = new Vector2(44f, 44f); // a finger-sized target around the small diamond
+            rt.sizeDelta = new Vector2(84f, 84f); // a finger-sized target around the small dot
             var group = go.AddComponent<CanvasGroup>();
 
             var hit = go.AddComponent<Image>();
@@ -193,100 +184,68 @@ namespace AuraSync.UI
             btn.transition = Selectable.Transition.None;
             btn.onClick.AddListener(() => OnPinPressed(id));
 
-            // Dark edge, then the coloured diamond on top.
-            Diamond(go.transform, "Edge", 30f, new Color(0.05f, 0.06f, 0.09f, 0.95f));
-            Image diamond = Diamond(go.transform, "Fill", 22f, Color.yellow);
+            // A dark ring, then the coloured dot inside it.
+            Dot(go.transform, "Edge", 48f, AuraTheme.A(AuraTheme.Ink, 0.95f));
+            Image dot = Dot(go.transform, "Fill", 32f, Color.yellow);
 
-            var labelGo = new GameObject("Label", typeof(RectTransform));
-            labelGo.transform.SetParent(go.transform, false);
-            var lrt = (RectTransform)labelGo.transform;
+            var label = AuraKit.Box(go.transform, "Label", AuraTheme.A(AuraTheme.Ink, 0.88f), 26f, true);
+            AuraKit.Border(label, AuraTheme.A(AuraTheme.Slate, 0.9f), 26f).raycastTarget = false;
+            var labelGo = label.gameObject;
+            var lrt = label.rectTransform;
             lrt.anchorMin = lrt.anchorMax = new Vector2(1f, 0.5f);
             lrt.pivot = new Vector2(0f, 0.5f);
-            lrt.anchoredPosition = new Vector2(2f, 0f);
-            var bg = labelGo.AddComponent<Image>();
-            bg.color = new Color(0.05f, 0.06f, 0.09f, 0.82f);
+            lrt.anchoredPosition = new Vector2(-12f, 0f);
             var lbtn = labelGo.AddComponent<Button>();
-            lbtn.targetGraphic = bg;
+            lbtn.targetGraphic = label;
             lbtn.transition = Selectable.Transition.None;
             lbtn.onClick.AddListener(() => OnPinPressed(id));
-            var hg = labelGo.AddComponent<HorizontalLayoutGroup>();
-            hg.padding = new RectOffset(10, 10, 4, 4);
-            hg.childControlWidth = hg.childControlHeight = true;
+            var hg = AuraKit.HStack(label, 0f, 0, TextAnchor.MiddleLeft);
+            hg.padding = new RectOffset(22, 22, 10, 10);
             var fit = labelGo.AddComponent<ContentSizeFitter>();
             fit.horizontalFit = fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(labelGo.transform, false);
-            var t = textGo.AddComponent<TextMeshProUGUI>();
-            t.fontSize = 19f;
-            t.color = Color.white;
+            var t = AuraKit.Text(label.transform, "", AuraTheme.SizeLabel + 2f, AuraTheme.Text, AuraWeight.SemiBold);
             t.enableWordWrapping = false;
             t.raycastTarget = false;
 
-            return new Pin { go = go, rt = rt, diamond = diamond, labelGo = labelGo, label = t, group = group, id = id };
+            return new Pin { go = go, rt = rt, dot = dot, labelGo = labelGo, label = t, group = group, id = id };
         }
 
-        private static Image Diamond(Transform parent, string name, float size, Color color)
+        private static Image Dot(Transform parent, string name, float size, Color color)
         {
             var go = new GameObject(name, typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var rt = (RectTransform)go.transform;
             rt.sizeDelta = new Vector2(size, size);
-            rt.localRotation = Quaternion.Euler(0f, 0f, 45f);
             var img = go.AddComponent<Image>();
+            img.sprite = AuraSprites.Disc;
             img.color = color;
             img.raycastTarget = false;
             return img;
         }
 
-        private void BuildBanner()
+        /// <summary>"Tap the spot" card, top centre under the model name, with Cancel.</summary>
+        private void BuildBanner(RectTransform safe)
         {
-            _banner = new GameObject("PlacingBanner", typeof(RectTransform));
-            _banner.transform.SetParent(transform, false);
-            var rt = (RectTransform)_banner.transform;
-            rt.anchorMin = new Vector2(0.15f, 0.765f);
-            rt.anchorMax = new Vector2(0.98f, 0.835f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _banner.AddComponent<Image>().color = new Color(0.36f, 0.30f, 0.85f, 0.97f);
-            _banner.AddComponent<TouchBlocker>();
+            var card = AuraKit.Box(safe, "PlacingBanner", AuraTheme.A(AuraTheme.Indigo, 0.97f), AuraTheme.Radius + 6f, true);
+            AuraKit.Border(card, AuraTheme.Lavender, AuraTheme.Radius + 6f);
+            card.gameObject.AddComponent<TouchBlocker>();
+            _banner = card.gameObject;
+            var rt = card.rectTransform;
+            rt.anchorMin = new Vector2(0, 1);
+            rt.anchorMax = new Vector2(1, 1);
+            rt.pivot = new Vector2(0.5f, 1);
+            float top = AuraViewer.TopReserve + 110f;
+            rt.offsetMin = new Vector2(AuraViewer.Gutter + 60f, -top - 130f);
+            rt.offsetMax = new Vector2(-(AuraViewer.Gutter + 60f), -top);
+            var h = AuraKit.HStack(card, 20f, 0, TextAnchor.MiddleLeft);
+            h.padding = new RectOffset(30, 20, 18, 18);
 
-            var hg = _banner.AddComponent<HorizontalLayoutGroup>();
-            hg.padding = new RectOffset(20, 12, 10, 10);
-            hg.spacing = 12;
-            hg.childAlignment = TextAnchor.MiddleLeft;
-            hg.childControlWidth = hg.childControlHeight = true;
-            hg.childForceExpandWidth = false;
-
-            var textGo = new GameObject("Text", typeof(RectTransform));
-            textGo.transform.SetParent(_banner.transform, false);
-            var t = textGo.AddComponent<TextMeshProUGUI>();
-            t.text = "Tap the spot on the model where the note goes.";
-            t.fontSize = 24f;
-            t.enableAutoSizing = true; t.fontSizeMin = 15f; t.fontSizeMax = 24f;
-            t.color = Color.white;
-            t.alignment = TextAlignmentOptions.MidlineLeft;
-            t.raycastTarget = false;
-            textGo.AddComponent<LayoutElement>().flexibleWidth = 1f;
-
-            var cancel = new GameObject("Cancel", typeof(RectTransform));
-            cancel.transform.SetParent(_banner.transform, false);
-            cancel.AddComponent<LayoutElement>().preferredWidth = 150f;
-            var img = cancel.AddComponent<Image>();
-            img.color = new Color(0f, 0f, 0f, 0.3f);
-            var b = cancel.AddComponent<Button>();
-            b.targetGraphic = img;
-            b.onClick.AddListener(() => PartNoteManager.Instance?.StopPlacing());
-            var ct = new GameObject("Label", typeof(RectTransform));
-            ct.transform.SetParent(cancel.transform, false);
-            var crt = (RectTransform)ct.transform;
-            crt.anchorMin = Vector2.zero; crt.anchorMax = Vector2.one; crt.offsetMin = crt.offsetMax = Vector2.zero;
-            var ctext = ct.AddComponent<TextMeshProUGUI>();
-            ctext.text = "CANCEL";
-            ctext.fontSize = 22f;
-            ctext.fontStyle = FontStyles.Bold;
-            ctext.color = Color.white;
-            ctext.alignment = TextAlignmentOptions.Center;
-            ctext.raycastTarget = false;
+            AuraKit.Icon(card.transform, AuraIcons.Note, 56f, AuraTheme.Lavender);
+            var t = AuraKit.Text(card.transform, "Tap the spot on the model where the note goes.", AuraTheme.SizeSmall, AuraTheme.Text);
+            t.enableWordWrapping = true;
+            AuraKit.Flex(t);
+            AuraWidgets.Chip(card.transform, "Cancel", AuraIcons.Close, false, () => PartNoteManager.Instance?.StopPlacing(), out _, 92f);
 
             _banner.SetActive(false);
         }

@@ -6,53 +6,64 @@ using Photon.Pun;
 using Photon.Realtime;
 using AuraSync.Networking;
 using AuraSync.Recording;
+using AuraSync.Reports;
 using AuraSync.Space;
 
 namespace AuraSync.UI
 {
     /// <summary>
-    /// SETTINGS, top right (V3 Phase 9), for the presenter, or anyone alone (D6):
+    /// What used to be SETTINGS, now two things (UI V2):
     ///
-    ///     SETTINGS                                  X
-    ///     RECORD & REPLAY
-    ///     [ START RECORDING ]   or   [ STOP RECORDING  2:13 ]
-    ///     Records the 3D session and your voice on this phone...
-    ///     [ RECORDINGS (3) ]
+    ///   ANALYSIS (top-right)   a card that drops down under the button:
+    ///                            Heatmap     where the class has been looking
+    ///                            Ask quiz    an AI quiz for the room (presenter, in a room)
+    ///                            Find task   "find the part" challenge (presenter, in a room)
+    ///                            Reports     saved quiz and heatmap reports (unseen count on the button)
     ///
-    ///     CLASS TOOLS
-    ///     [ HEATMAP ]  [ AI QUIZ ]       AI QUIZ only in a room: there is nobody to send it to alone (D6)
+    ///   RECORD (dock tab)      a sheet beside the tab: Start recording / Stop and save, and the
+    ///                          Recordings list (replay, share, heatmap). While recording the tab
+    ///                          turns rose and shows the time, and a REC pill sits at the top for
+    ///                          everyone in the room. Stopping asks for a name; Back keeps the
+    ///                          suggested one, Save (bottom-right) uses what was typed.
     ///
-    /// Also **REC** in the same corner row while anyone in the room records: red, with the time on
-    /// the recording phone (tap = stop), "REC" on everyone else's (tap = who is recording). STOP asks
-    /// for a name; Back or SAVE with the box empty keeps the suggested one.
+    /// Recording is for the presenter, or anyone alone (D6): others see the tab only while someone
+    /// records, and tapping it says who.
     /// </summary>
     public class SettingsPanelUI : MonoBehaviour
     {
         public static SettingsPanelUI Instance { get; private set; }
 
-        private const string SettingsId = "settings";
-        private const string RecId      = "rec";
-        private const string NavId      = "settings";
-        private const string NameNavId  = "rec-name";
+        private const string AnalysisId = "analysis";
+        private const string RecId = "rec";
+        private const string NavAnalysis = "analysis";
+        private const string NavRec = "rec";
+        private const string NameNavId = "rec-name";
 
-        private static readonly Color PanelColor  = new Color(0.07f, 0.09f, 0.13f, 0.97f);
-        private static readonly Color ButtonColor = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color AccentColor = new Color(0.36f, 0.30f, 0.85f, 1f);
-        private static readonly Color RecColor    = new Color(0.80f, 0.12f, 0.14f, 1f);
+        // Analysis
+        private AuraSlidePanel _analysis;
+        private RectTransform _analysisBody;
+        private GameObject _quizRow, _findRow;
+        private TextMeshProUGUI _reportsSub;
 
-        private GameObject _panel;
-        private TextMeshProUGUI _recBtnText, _listBtnText, _recHint;
-        private Image _recBtnImg;
+        // Record
+        private AuraSlidePanel _recSheet;
+        private Button _recButton;
+        private Image _recFill;
+        private TextMeshProUGUI _recLabel, _recHint, _recStatus, _listSub;
+        private GameObject _recPill;
+        private TextMeshProUGUI _recPillText;
 
-        private GameObject _quizBtn;
+        // Naming
         private GameObject _nameModal;
         private TMP_InputField _nameField;
 
-        private Button _recSlot;
-        private bool _settingsShown, _recShown;
+        private bool _analysisShown, _recShown;
         private int _recordingActor = -1;
         private float _nextText;
         private int _fileCount;
+
+        private bool AnalysisOpen => _analysis != null && _analysis.IsShown;
+        private bool RecOpen => _recSheet != null && _recSheet.IsShown;
 
         void Awake()
         {
@@ -66,7 +77,9 @@ namespace AuraSync.UI
         void OnDestroy()
         {
             SessionRecorder.OnChanged -= Recount;
-            PanelNavigator.Remove(NavId);
+            ReportStore.OnChanged -= RefreshReports;
+            PanelNavigator.Remove(NavAnalysis);
+            PanelNavigator.Remove(NavRec);
             PanelNavigator.Remove(NameNavId);
             if (Instance == this) Instance = null;
         }
@@ -75,70 +88,45 @@ namespace AuraSync.UI
         {
             while (SpaceSessionHUD.Instance == null) yield return null;
             SpaceSessionHUD hud = SpaceSessionHUD.Instance;
-            hud.AddCornerButton(RecId, "REC", OnRecSlot);
+            hud.AddCornerButton(AnalysisId, "Analysis", ToggleAnalysis);
+            hud.SetSlotVisible(AnalysisId, false);
+            hud.AddRailButton(RecId, "Record", OnRecTab);
             hud.SetSlotVisible(RecId, false);
-            hud.AddCornerButton(SettingsId, "SETTINGS", TogglePanel);
-            hud.SetSlotVisible(SettingsId, false);
-
-            // The REC slot is red.
-            _recSlot = FindSlot(hud, RecId);
-            if (_recSlot != null)
-            {
-                _recSlot.GetComponent<Image>().color = RecColor;
-                ColorBlock cb = _recSlot.colors;
-                cb.highlightedColor = new Color(0.9f, 0.25f, 0.25f);
-                cb.pressedColor = new Color(0.6f, 0.08f, 0.1f);
-                _recSlot.colors = cb;
-            }
             SessionRecorder.OnChanged += Recount;
+            ReportStore.OnChanged += RefreshReports;
+            Recount();
+            RefreshReports();
         }
 
-        /// <summary>Counts the recordings on disk (only when it can have changed, not every refresh).</summary>
         private void Recount()
         {
             _fileCount = RecordingStore.List().Count;
-            Refresh();
-        }
-
-        private static Button FindSlot(SpaceSessionHUD hud, string id)
-        {
-            Transform t = FindDeep(hud.transform, "Slot_" + id);
-            return t != null ? t.GetComponent<Button>() : null;
-        }
-
-        private static Transform FindDeep(Transform t, string name)
-        {
-            if (t.name == name) return t;
-            for (int i = 0; i < t.childCount; i++)
-            {
-                Transform f = FindDeep(t.GetChild(i), name);
-                if (f != null) return f;
-            }
-            return null;
+            RefreshRecord();
         }
 
         void Update()
         {
             SpaceSessionHUD hud = SpaceSessionHUD.Instance;
-            if (hud == null || !hud.HasSlot(SettingsId)) return;
+            if (hud == null || !hud.HasSlot(AnalysisId)) return;
 
             bool model = !string.IsNullOrEmpty(SpaceSceneManager.CurrentModelKey) && !AuraSync.Challenge.ReassemblyGame.IsActive;
-            bool settings = model && SessionRecorder.LocalMayRecord && !SessionPlayer.IsReplaying;
-            if (settings != _settingsShown)
+            bool analysis = model && !SessionPlayer.IsReplaying;
+            if (analysis != _analysisShown)
             {
-                _settingsShown = settings;
-                hud.SetSlotVisible(SettingsId, settings);
-                if (!settings) ClosePanel();
+                _analysisShown = analysis;
+                hud.SetSlotVisible(AnalysisId, analysis);
+                if (!analysis) CloseAnalysis();
             }
 
             SessionRecorder rec = SessionRecorder.Instance;
             bool mine = rec != null && rec.IsRecording;
             Player other = mine ? null : SessionRecorder.RecordingPlayer();
-            bool showRec = mine || other != null;
-            if (showRec != _recShown)
+            bool recTab = model && !SessionPlayer.IsReplaying && (SessionRecorder.LocalMayRecord || mine || other != null);
+            if (recTab != _recShown)
             {
-                _recShown = showRec;
-                hud.SetSlotVisible(RecId, showRec);
+                _recShown = recTab;
+                hud.SetSlotVisible(RecId, recTab);
+                if (!recTab) CloseRecord();
             }
 
             // Tell everyone when somebody starts recording.
@@ -153,58 +141,105 @@ namespace AuraSync.UI
             if (Time.unscaledTime >= _nextText)
             {
                 _nextText = Time.unscaledTime + 0.25f;
-                if (showRec) hud.SetSlotLabel(RecId, mine ? "REC " + RecordingStore.Clock(rec.Elapsed) : "REC");
-                if (_panel.activeSelf) Refresh();
+                bool anyone = mine || other != null;
+                hud.SetSlotLabel(RecId, mine ? RecordingStore.Clock(rec.Elapsed) : anyone ? "Rec" : "Record");
+                hud.SetSlotTint(RecId, anyone ? (Color?)AuraTheme.Rose : null);
+                bool pill = anyone && (ModelPartsDrawerUI.Instance == null || !ModelPartsDrawerUI.Instance.IsOpen);
+                if (_recPill.activeSelf != pill) _recPill.SetActive(pill);
+                if (anyone)
+                    _recPillText.text = mine ? $"REC  {RecordingStore.Clock(rec.Elapsed)}" : $"REC  ·  {NetworkManager.DisplayName(other)}";
+                if (RecOpen) RefreshRecord();
+                if (AnalysisOpen) RefreshAnalysis();
             }
         }
 
-        // ── REC slot ───────────────────────────────────────────────────────────
+        // ── Analysis ───────────────────────────────────────────────────
 
-        private void OnRecSlot()
+        private void ToggleAnalysis()
+        {
+            if (AnalysisOpen) CloseAnalysis();
+            else OpenAnalysis();
+        }
+
+        private void OpenAnalysis()
+        {
+            ViewerPanels.Opened(AnalysisId, CloseAnalysis);
+            PanelNavigator.Push(NavAnalysis, this, CloseAnalysis);
+            RefreshAnalysis();
+            _analysis.Show();
+        }
+
+        public void ClosePanel() => CloseAnalysis();
+
+        private void CloseAnalysis()
+        {
+            if (!AnalysisOpen) return;
+            _analysis.Hide();
+            ViewerPanels.Closed(AnalysisId);
+            PanelNavigator.Remove(NavAnalysis);
+        }
+
+        private void RefreshAnalysis()
+        {
+            bool presenter = PhotonNetwork.InRoom && ModelPartSelector.IsPresenting;
+            if (_quizRow.activeSelf != presenter) _quizRow.SetActive(presenter);
+            if (_findRow.activeSelf != presenter) _findRow.SetActive(presenter);
+        }
+
+        private void RefreshReports()
+        {
+            int n = ReportStore.Count, unseen = ReportStore.Unseen;
+            if (_reportsSub != null)
+                _reportsSub.text = n == 0 ? "Quiz and heatmap reports" : unseen > 0 ? $"{n} saved · {unseen} new" : $"{n} saved";
+            SpaceSessionHUD.Instance?.SetSlotCount(AnalysisId, unseen);
+        }
+
+        // ── Record ─────────────────────────────────────────────────────
+
+        private void OnRecTab()
         {
             SessionRecorder rec = SessionRecorder.Instance;
-            if (rec != null && rec.IsRecording) { StopAndName(); return; }
-            Player p = SessionRecorder.RecordingPlayer();
-            Toast.Show(p != null
-                ? $"{NetworkManager.DisplayName(p)} is recording this session: the model, notes, views, pings and {NetworkManager.DisplayName(p)}'s voice. Your voice is not recorded."
-                : "Nobody is recording.");
+            bool mine = rec != null && rec.IsRecording;
+            if (!mine && !SessionRecorder.LocalMayRecord)
+            {
+                Player p = SessionRecorder.RecordingPlayer();
+                Toast.Show(p != null
+                    ? $"{NetworkManager.DisplayName(p)} is recording this session: the model, notes, views, pings and {NetworkManager.DisplayName(p)}'s voice. Your voice is not recorded."
+                    : "Only the presenter records in a room.");
+                return;
+            }
+            if (RecOpen) CloseRecord();
+            else OpenRecord();
         }
 
-        // ── Panel ──────────────────────────────────────────────────────────────
-
-        private void TogglePanel()
+        private void OpenRecord()
         {
-            if (_panel.activeSelf) ClosePanel();
-            else OpenPanel();
-        }
-
-        private void OpenPanel()
-        {
-            _panel.SetActive(true);
-            PanelNavigator.Push(NavId, this, ClosePanel);
+            ViewerPanels.Opened(RecId, CloseRecord);
+            PanelNavigator.Push(NavRec, this, CloseRecord);
             Recount();
+            _recSheet.Show();
         }
 
-        public void ClosePanel()
+        private void CloseRecord()
         {
-            if (_panel == null || !_panel.activeSelf) return;
-            _panel.SetActive(false);
-            PanelNavigator.Remove(NavId);
+            if (!RecOpen) return;
+            _recSheet.Hide();
+            ViewerPanels.Closed(RecId);
+            PanelNavigator.Remove(NavRec);
         }
 
-        private void Refresh()
+        private void RefreshRecord()
         {
-            if (_recBtnText == null) return;
+            if (_recLabel == null) return;
             SessionRecorder rec = SessionRecorder.Instance;
             bool on = rec != null && rec.IsRecording;
-            _recBtnText.text = on ? $"STOP RECORDING   {RecordingStore.Clock(rec.Elapsed)}" : "START RECORDING";
-            _recBtnImg.color = on ? RecColor : AccentColor;
+            _recLabel.text = on ? $"Stop and save   {RecordingStore.Clock(rec.Elapsed)}" : "Start recording";
+            _recFill.color = on ? AuraTheme.Rose : AuraTheme.Lavender;
+            _recStatus.text = on ? "● LIVE" : "";
             _recHint.text = PhotonNetwork.InRoom
-                ? "Records the 3D session on this phone: the model, notes, everyone's views and pings, and your voice while your mic is on " +
-                  "(other people's voices are not recorded, only when they spoke). Everyone in the room sees REC."
+                ? "Records the session on this phone: the model, notes, everyone's views and pings, and your voice while your mic is on. Everyone in the room sees REC."
                 : "Records what you do with the model, and your voice, on this phone: a narrated walkthrough to replay or share.";
-            _listBtnText.text = $"RECORDINGS ({_fileCount})";
-            if (_quizBtn != null) _quizBtn.SetActive(PhotonNetwork.InRoom);
+            _listSub.text = _fileCount == 0 ? "None yet" : $"{_fileCount} saved · replay, share, heatmap";
         }
 
         private void OnRecordPressed()
@@ -219,26 +254,26 @@ namespace AuraSync.UI
                 Toast.Show(PhotonNetwork.InRoom
                     ? (muted ? "Recording. Your mic is off: turn it on to record your voice. Everyone sees REC." : "Recording, with your voice. Everyone in the room sees REC.")
                     : "Recording, with your voice.");
-                ClosePanel();
+                CloseRecord();
             }
             else Toast.Show("Could not start recording.");
-            Refresh();
+            RefreshRecord();
         }
 
         private void OpenRecordings()
         {
-            ClosePanel();
+            CloseRecord();
             RecordingsUI.Instance?.OpenList();
         }
 
-        // ── Naming ─────────────────────────────────────────────────────────────
+        // ── Naming ─────────────────────────────────────────────────────
 
         private void StopAndName()
         {
             SessionRecorder rec = SessionRecorder.Instance;
             if (rec == null || !rec.IsRecording) return;
             rec.Stop(askName: true);
-            ClosePanel();
+            CloseRecord();
 
             _nameField.text = rec.PendingDefaultName ?? "";
             _nameModal.SetActive(true);
@@ -248,200 +283,135 @@ namespace AuraSync.UI
         private void SaveName(bool useDefault)
         {
             if (!_nameModal.activeSelf) return;
+            _nameField.DeactivateInputField();
             _nameModal.SetActive(false);
             PanelNavigator.Remove(NameNavId);
             SessionRecorder.Instance?.FinishPending(useDefault ? null : _nameField.text);
-            Toast.Show("Recording saved. Settings > Recordings to replay or share it.");
+            Toast.Show("Recording saved. Record → Recordings to replay or share it.");
         }
 
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 99; // over the drawer (97) and chat (98), under the room panel (100)
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
-
-            // Panel under the corner row, right-aligned
-            _panel = new GameObject("SettingsPanel", typeof(RectTransform));
-            _panel.transform.SetParent(transform, false);
-            var rt = (RectTransform)_panel.transform;
-            rt.anchorMin = new Vector2(0.30f, 0.84f);
-            rt.anchorMax = new Vector2(0.98f, 0.84f);
-            rt.pivot = new Vector2(0.5f, 1f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _panel.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            _panel.AddComponent<Image>().color = PanelColor;
-            _panel.AddComponent<TouchBlocker>();
-            var vg = _panel.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(16, 16, 12, 16);
-            vg.spacing = 10;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
-
-            var head = Row(_panel.transform, 52f);
-            var title = Text(head.transform, "SETTINGS", 24f, Color.white);
-            title.fontStyle = FontStyles.Bold;
-            title.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            Button(head.transform, "X", new Color(0.45f, 0.14f, 0.14f), ClosePanel, 52f);
-
-            var section = Text(_panel.transform, "RECORD & REPLAY", 19f, new Color(1f, 1f, 1f, 0.6f));
-            section.fontStyle = FontStyles.Bold;
-
-            var recRow = Row(_panel.transform, 64f);
-            GameObject recBtn = Button(recRow.transform, "START RECORDING", AccentColor, OnRecordPressed, 100f);
-            recBtn.GetComponent<LayoutElement>().flexibleWidth = 1f;
-            _recBtnImg = recBtn.GetComponent<Image>();
-            _recBtnText = recBtn.GetComponentInChildren<TextMeshProUGUI>();
-
-            _recHint = Text(_panel.transform, "", 17f, new Color(1f, 1f, 1f, 0.65f));
-            _recHint.enableWordWrapping = true;
-
-            var listRow = Row(_panel.transform, 60f);
-            GameObject listBtn = Button(listRow.transform, "RECORDINGS", ButtonColor, OpenRecordings, 100f);
-            listBtn.GetComponent<LayoutElement>().flexibleWidth = 1f;
-            _listBtnText = listBtn.GetComponentInChildren<TextMeshProUGUI>();
-
-            var tools = Text(_panel.transform, "CLASS TOOLS", 19f, new Color(1f, 1f, 1f, 0.6f));
-            tools.fontStyle = FontStyles.Bold;
-            var toolRow = Row(_panel.transform, 60f);
-            GameObject heat = Button(toolRow.transform, "HEATMAP", ButtonColor, () => { ClosePanel(); HeatmapUI.Instance?.Open(); }, 100f);
-            heat.GetComponent<LayoutElement>().flexibleWidth = 1f;
-            _quizBtn = Button(toolRow.transform, "AI QUIZ", ButtonColor, () => { ClosePanel(); QuizTeacherUI.Instance?.Open(); }, 100f);
-            _quizBtn.GetComponent<LayoutElement>().flexibleWidth = 1f;
-
-            _panel.SetActive(false);
+            var safe = AuraViewer.CreateCanvas(transform, "AnalysisCanvas", 99, out _);
+            BuildAnalysis(safe);
+            BuildRecord(safe);
+            BuildRecPill(safe);
             BuildNameModal();
+        }
+
+        private void BuildAnalysis(RectTransform safe)
+        {
+            var card = AuraKit.Box(safe, "AnalysisCard", AuraTheme.A(AuraTheme.Indigo, 0.97f), AuraTheme.Radius + 8f, true);
+            AuraKit.Border(card, AuraTheme.Slate, AuraTheme.Radius + 8f);
+            var rt = card.rectTransform;
+            rt.anchorMin = rt.anchorMax = new Vector2(1, 1);
+            rt.pivot = new Vector2(1, 1);
+            rt.sizeDelta = new Vector2(820, 400);
+            var top = new Vector2(-AuraViewer.Gutter, -(AuraViewer.Gutter + AuraViewer.TopButton + 20f));
+            rt.anchoredPosition = top;
+            var v = AuraKit.VStack(card, 16f);
+            v.padding = new RectOffset(32, 32, 32, 32);
+            AuraKit.FitHeight(card);
+            _analysisBody = rt;
+
+            AuraKit.Text(rt, "Analysis", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            AuraKit.ListRow(rt, AuraIcons.Fire, "Heatmap", "Where the class has been looking",
+                            () => { CloseAnalysis(); HeatmapUI.Instance?.Open(); }, out _);
+            _quizRow = AuraKit.ListRow(rt, AuraIcons.Quiz, "Ask quiz", "An AI quiz for everyone in the room",
+                                       () => { CloseAnalysis(); QuizTeacherUI.Instance?.Open(); }, out _).gameObject;
+            _findRow = AuraKit.ListRow(rt, AuraIcons.Target, "Find task", "\"Find the part\" challenge for the room",
+                                       () => { CloseAnalysis(); AttentionUI.Instance?.OpenFindTask(); }, out _).gameObject;
+            AuraKit.ListRow(rt, AuraIcons.Doc, "Reports", "Quiz and heatmap reports",
+                            () => { CloseAnalysis(); ReportsUI.Open(); }, out _reportsSub);
+
+            _analysis = AuraSlidePanel.Attach(rt, top, top + new Vector2(0, 50f));
+        }
+
+        private void BuildRecord(RectTransform safe)
+        {
+            var sheet = AuraViewer.ToolSheet(safe, "RecordSheet");
+            AuraViewer.SheetHeader(sheet, "Recording", out _recStatus);
+            _recStatus.color = AuraTheme.Rose;
+
+            _recButton = AuraKit.Pill(sheet, "Start recording", AuraIcons.Record, AuraTheme.Lavender, AuraTheme.Ink, OnRecordPressed,
+                                      AuraTheme.SlotHeight - 10f);
+            _recFill = _recButton.GetComponent<Image>();
+            _recLabel = _recButton.GetComponentInChildren<TextMeshProUGUI>();
+
+            AuraKit.ListRow(sheet, AuraIcons.Doc, "Recordings", "None yet", OpenRecordings, out _listSub);
+            _recHint = AuraKit.Text(sheet, "", AuraTheme.SizeCaption, AuraTheme.TextDim);
+
+            _recSheet = AuraViewer.SlideUp(sheet);
+        }
+
+        private void BuildRecPill(RectTransform safe)
+        {
+            var pill = AuraKit.Box(safe, "RecPill", AuraTheme.A(AuraTheme.Rose, 0.2f), 30f);
+            AuraKit.Border(pill, AuraTheme.Rose, 30f);
+            // Under Parts, top-left (the top centre holds the model name and the selected part).
+            AuraKit.Pin(pill.rectTransform, new Vector2(0, 1), new Vector2(0, 1),
+                        new Vector2(AuraViewer.Gutter, -(AuraViewer.Gutter + AuraViewer.TopButton + 14f)), new Vector2(360, 58));
+            var h = AuraKit.HStack(pill, 12f, 0, TextAnchor.MiddleCenter);
+            h.padding = new RectOffset(22, 22, 0, 0);
+            var dot = AuraKit.Icon(pill.transform, AuraIcons.Record, 34f, AuraTheme.Rose);
+            dot.gameObject.AddComponent<Blink>();
+            _recPillText = AuraKit.Text(pill.transform, "REC", AuraTheme.SizeCaption, AuraTheme.Text, AuraWeight.Bold);
+            _recPillText.enableWordWrapping = false;
+            _recPill = pill.gameObject;
+            _recPill.SetActive(false);
         }
 
         private void BuildNameModal()
         {
-            _nameModal = new GameObject("NameModal", typeof(RectTransform));
-            _nameModal.transform.SetParent(transform, false);
-            var mrt = (RectTransform)_nameModal.transform;
-            mrt.anchorMin = Vector2.zero; mrt.anchorMax = Vector2.one; mrt.offsetMin = mrt.offsetMax = Vector2.zero;
-            var mc = _nameModal.AddComponent<Canvas>();
-            mc.overrideSorting = true;
-            mc.sortingOrder = 102;
-            _nameModal.AddComponent<GraphicRaycaster>();
-            _nameModal.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.55f);
-            _nameModal.AddComponent<TouchBlocker>();
+            var canvas = AuraKit.CreateCanvas(transform, "RecordingName", 102);
+            _nameModal = canvas.gameObject;
+            var dim = AuraKit.Box(canvas.transform, "Dim", AuraTheme.A(AuraTheme.Ink, 0.7f), 0f, true);
+            AuraKit.Fill(dim.rectTransform);
+            var safe = AuraKit.Rect(canvas.transform, "SafeArea");
+            safe.gameObject.AddComponent<AuraSafeArea>();
+            var lift = AuraKit.Fill(AuraKit.Rect(safe, "Lift"));
+            lift.gameObject.AddComponent<KeyboardLift>().target = lift;
 
-            var card = new GameObject("Card", typeof(RectTransform));
-            card.transform.SetParent(_nameModal.transform, false);
-            var crt = (RectTransform)card.transform;
-            crt.anchorMin = new Vector2(0.08f, 0.5f); crt.anchorMax = new Vector2(0.92f, 0.5f);
+            var card = AuraKit.Box(lift, "Card", AuraTheme.A(AuraTheme.Indigo, 0.98f), AuraTheme.Radius + 8f, true);
+            AuraKit.Border(card, AuraTheme.Slate, AuraTheme.Radius + 8f);
+            var crt = card.rectTransform;
+            crt.anchorMin = crt.anchorMax = new Vector2(0.5f, 0.55f);
             crt.pivot = new Vector2(0.5f, 0.5f);
-            crt.offsetMin = crt.offsetMax = Vector2.zero;
-            card.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            card.AddComponent<Image>().color = PanelColor;
-            var vg = card.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(24, 24, 20, 20);
-            vg.spacing = 14;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            card.gameObject.AddComponent<MatchParentWidth>().max = 900f;
+            var v = AuraKit.VStack(card, 18f);
+            v.padding = new RectOffset(44, 44, 40, 40);
+            AuraKit.FitHeight(card);
+            AuraKit.Text(card.transform, "Name this recording", AuraTheme.SizeTitle - 8f, AuraTheme.Text, AuraWeight.Bold);
+            _nameField = AuraWidgets.Input(card.transform, "Recording name", "", false, 130f, 60);
+            _nameField.richText = false;
+            AuraKit.Text(card.transform, "Back keeps the suggested name.", AuraTheme.SizeCaption, AuraTheme.TextDim);
 
-            var t = Text(card.transform, "Name this recording", 26f, Color.white);
-            t.fontStyle = FontStyles.Bold;
-            _nameField = Input(card.transform);
-
-            var row = Row(card.transform, 64f);
-            GameObject keep = Button(row.transform, "KEEP SUGGESTED", ButtonColor, () => SaveName(useDefault: true), 100f);
-            keep.GetComponent<LayoutElement>().flexibleWidth = 1f;
-            GameObject save = Button(row.transform, "SAVE", AccentColor, () => SaveName(useDefault: false), 100f);
-            save.GetComponent<LayoutElement>().flexibleWidth = 1f;
+            var back = AuraKit.Pill(lift, "Back", AuraIcons.Back, AuraTheme.A(AuraTheme.Indigo, 0.96f), AuraTheme.Text,
+                                    () => SaveName(useDefault: true), AuraViewer.BackHeight, AuraTheme.Slate);
+            AuraKit.Pin((RectTransform)back.transform, Vector2.zero, Vector2.zero,
+                        new Vector2(AuraViewer.Gutter, AuraViewer.Gutter), new Vector2(270, AuraViewer.BackHeight));
+            var save = AuraKit.Pill(lift, "Save", AuraIcons.Ok, AuraTheme.Lavender, AuraTheme.Ink,
+                                    () => SaveName(useDefault: false), AuraViewer.BackHeight);
+            AuraKit.Pin((RectTransform)save.transform, new Vector2(1, 0), new Vector2(1, 0),
+                        new Vector2(-AuraViewer.Gutter, AuraViewer.Gutter), new Vector2(300, AuraViewer.BackHeight));
 
             _nameModal.SetActive(false);
         }
+    }
 
-        private static TMP_InputField Input(Transform parent)
+    /// <summary>A soft blink for the REC dot.</summary>
+    public class Blink : MonoBehaviour
+    {
+        private Graphic _g;
+        void Awake() => _g = GetComponent<Graphic>();
+        void Update()
         {
-            var go = new GameObject("Input", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            go.SetActive(false); // TMP_InputField wires itself up on enable; configure it first
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = 70f;
-            go.AddComponent<Image>().color = new Color(0.03f, 0.04f, 0.07f, 1f);
-
-            var area = new GameObject("TextArea", typeof(RectTransform));
-            area.transform.SetParent(go.transform, false);
-            var art = (RectTransform)area.transform;
-            art.anchorMin = Vector2.zero; art.anchorMax = Vector2.one;
-            art.offsetMin = new Vector2(16f, 8f); art.offsetMax = new Vector2(-16f, -8f);
-            area.AddComponent<RectMask2D>();
-
-            TextMeshProUGUI placeholder = Text(area.transform, "Recording name", 24f, new Color(1f, 1f, 1f, 0.3f));
-            Stretch(placeholder.rectTransform);
-            TextMeshProUGUI text = Text(area.transform, "", 24f, Color.white);
-            Stretch(text.rectTransform);
-            text.richText = false;
-
-            var field = go.AddComponent<TMP_InputField>();
-            field.textViewport = art;
-            field.textComponent = text;
-            field.placeholder = placeholder;
-            field.lineType = TMP_InputField.LineType.SingleLine;
-            field.characterLimit = 60;
-            field.richText = false;
-            go.SetActive(true);
-            return field;
-        }
-
-        private static void Stretch(RectTransform rt)
-        {
-            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one; rt.offsetMin = rt.offsetMax = Vector2.zero;
-        }
-
-        private static GameObject Row(Transform parent, float height)
-        {
-            var go = new GameObject("Row", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = height;
-            le.flexibleHeight = 0f;
-            var hg = go.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing = 10;
-            hg.childAlignment = TextAnchor.MiddleLeft;
-            hg.childControlWidth = hg.childControlHeight = true;
-            hg.childForceExpandWidth = false; hg.childForceExpandHeight = true;
-            return go;
-        }
-
-        private static TextMeshProUGUI Text(Transform parent, string text, float size, Color color)
-        {
-            var go = new GameObject("Text", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.text = text;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = TextAlignmentOptions.MidlineLeft;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static GameObject Button(Transform parent, string label, Color color, UnityEngine.Events.UnityAction onClick, float width)
-        {
-            var go = new GameObject(label, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minWidth = le.preferredWidth = width;
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var b = go.AddComponent<UnityEngine.UI.Button>();
-            b.targetGraphic = img;
-            b.onClick.AddListener(onClick);
-            var t = Text(go.transform, label, 21f, Color.white);
-            Stretch(t.rectTransform);
-            t.alignment = TextAlignmentOptions.Center;
-            t.fontStyle = FontStyles.Bold;
-            t.enableAutoSizing = true; t.fontSizeMin = 13f; t.fontSizeMax = 21f;
-            return go;
+            if (_g == null) return;
+            Color c = _g.color;
+            c.a = 0.45f + 0.55f * Mathf.Abs(Mathf.Sin(Time.unscaledTime * 2.4f));
+            _g.color = c;
         }
     }
 }
