@@ -10,42 +10,37 @@ namespace AuraSync.UI
     /// <summary>
     /// The recordings list and the replay bar (V3 Phase 9).
     ///
-    ///   RECORDINGS (Settings)     each recording: name, model, date, length, size and size per
-    ///                             minute; PLAY, SHARE, DELETE (tap twice). In a room PLAY is off:
-    ///                             "Leave the room to replay".
+    ///   RECORDINGS (Record → Recordings)   each recording: name, model, date, length, size; Play,
+    ///                                      Share, Heatmap, Delete (tap twice). In a room Play is
+    ///                                      off: "Leave the room to replay". Import (top-right) brings
+    ///                                      in a recording someone shared (one .aurarec file, voice
+    ///                                      inside); one made on a scan this phone does not have is
+    ///                                      listed, with Play off and the reason.
     ///
-    ///   Replay bar (bottom)       REPLAY · name                                  EXIT
-    ///                             0:42 ⟵ what just happened  ·  Speaking: Asha
-    ///                             [timeline 0:00 ──o────── 10:03]
-    ///                             PAUSE   1x   PRESENTER VIEW / FREE CAMERA
+    ///   Replay bar (bottom, full width while the dock steps aside)
+    ///       Replay · name                                  (Exit)
+    ///       what just happened · Speaking: Asha
+    ///       0:42 ────────●──────────── 10:03
+    ///       (1×)  (▶/❚❚)  (Presenter view / Free camera)
     ///
-    /// Back (on screen or the phone's) leaves the replay, and the model goes back to how it was.
+    /// Back (bottom-left, or the phone's) leaves the replay, and the model goes back to how it was.
     /// </summary>
     public class RecordingsUI : MonoBehaviour
     {
         public static RecordingsUI Instance { get; private set; }
 
-        private const string ListNavId   = "recordings";
+        private const string ListNavId = "recordings";
         private const string ReplayNavId = "replay";
 
-        private static readonly Color PanelColor  = new Color(0.07f, 0.09f, 0.13f, 0.97f);
-        private static readonly Color RowColor    = new Color(1f, 1f, 1f, 0.06f);
-        private static readonly Color ButtonColor = new Color(0.22f, 0.26f, 0.36f, 1f);
-        private static readonly Color AccentColor = new Color(0.36f, 0.30f, 0.85f, 1f);
-        private static readonly Color DangerColor = new Color(0.55f, 0.18f, 0.18f, 1f);
-        private static readonly Color DimText     = new Color(1f, 1f, 1f, 0.6f);
-
-        private GameObject _list;
-        private RectTransform _rows;
-        private TextMeshProUGUI _listNote, _empty;
+        private AuraPage _page;
+        private bool _importing;
         private string _armedDelete;
         private float _armedAt;
 
-        private GameObject _bar;
-        private TextMeshProUGUI _barTitle, _barInfo, _playText, _speedText, _camText;
-        private RectTransform _timelineRow;
+        private AuraSlidePanel _bar;
+        private TextMeshProUGUI _barTitle, _barInfo, _speedText, _camText, _timeNow, _timeEnd;
+        private Image _playIcon;
         private Slider _timeline;
-        private TextMeshProUGUI _bubble;
         private bool _settingSlider;
 
         void Awake()
@@ -64,67 +59,75 @@ namespace AuraSync.UI
             if (Instance == this) Instance = null;
         }
 
-        // ── List ───────────────────────────────────────────────────────────────
+        // ── List ───────────────────────────────────────────────────────
 
         public void OpenList()
         {
-            _list.SetActive(true);
+            _page.Open();
             PanelNavigator.Push(ListNavId, this, CloseList);
             Fill();
         }
 
         public void CloseList()
         {
-            if (_list == null || !_list.activeSelf) return;
-            _list.SetActive(false);
+            if (_page == null || !_page.IsOpen) return;
+            _page.Close();
             PanelNavigator.Remove(ListNavId);
         }
 
         private void Fill()
         {
-            for (int i = _rows.childCount - 1; i >= 0; i--) Destroy(_rows.GetChild(i).gameObject);
-
+            _page.ClearBody();
             List<RecordingInfo> all = RecordingStore.List();
-            _empty.gameObject.SetActive(all.Count == 0);
             bool inRoom = PhotonNetwork.InRoom;
-            _listNote.text = inRoom ? "Leave the room to replay a recording. You can still share one." : "Replays play on this phone only.";
-
+            _page.Subtitle.text = inRoom ? "Leave the room to replay. You can still share one." : "Replays play on this phone only.";
+            if (all.Count == 0)
+                AuraKit.Text(_page.Body, "No recordings yet. Record → Start recording, or Import one someone shared with you.",
+                             AuraTheme.SizeBody, AuraTheme.TextDim);
             foreach (RecordingInfo info in all) AddRow(info, inRoom);
+            _page.ScrollToTop();
         }
 
         private void AddRow(RecordingInfo info, bool inRoom)
         {
-            var row = new GameObject("Recording", typeof(RectTransform));
-            row.transform.SetParent(_rows, false);
-            row.AddComponent<Image>().color = RowColor;
-            var vg = row.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(14, 14, 10, 10);
-            vg.spacing = 6;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            var row = AuraKit.Box(_page.Body, "Recording", AuraTheme.A(AuraTheme.Indigo, 0.9f), AuraTheme.Radius, true);
+            AuraKit.Border(row, AuraTheme.A(AuraTheme.Slate, 0.8f));
+            var v = AuraKit.VStack(row, 12f);
+            v.padding = new RectOffset(30, 30, 26, 26);
 
-            var name = Text(row.transform, Esc(info.name), 22f, Color.white);
-            name.fontStyle = FontStyles.Bold;
-            name.overflowMode = TextOverflowModes.Ellipsis;
+            var name = AuraKit.Text(row.transform, Esc(info.name), AuraTheme.SizeBody, AuraTheme.Text, AuraWeight.SemiBold);
             name.enableWordWrapping = false;
-
-            string meta = $"{Esc(info.header.modelName)}  ·  {info.started:d MMM HH:mm}  ·  {RecordingStore.Clock(info.seconds)}  ·  " +
-                          (info.HasVoice ? "with voice  ·  " : "no sound  ·  ") +
+            bool imported = RecordingImport.IsImported(info);
+            string meta = (imported ? $"Imported{(string.IsNullOrEmpty(info.header.recorderName) ? "" : " from " + Esc(info.header.recorderName))} · " : "") +
+                          $"{Esc(info.header.modelName)} · {info.started:d MMM HH:mm} · {RecordingStore.Clock(info.seconds)} · " +
+                          (info.HasVoice ? "with voice · " : "no sound · ") +
                           $"{RecordingStore.SizeText(info.TotalBytes)}" + (info.seconds >= 30f ? $" ({info.KbPerMinute:0} KB/min)" : "");
-            var m = Text(row.transform, meta, 17f, DimText);
-            m.enableWordWrapping = true;
+            AuraKit.Text(row.transform, meta, AuraTheme.SizeCaption - 2f, AuraTheme.TextDim).enableWordWrapping = true;
+            var missing = AuraKit.Text(row.transform, "", AuraTheme.SizeCaption - 2f, AuraTheme.Rose);
+            missing.enableWordWrapping = true;
+            missing.gameObject.SetActive(false);
 
-            var buttons = Row(row.transform, 54f);
-            GameObject play = Button(buttons.transform, "PLAY", inRoom ? ButtonColor : AccentColor, () => Play(info), 100f);
-            play.GetComponent<Button>().interactable = !inRoom;
-            Button(buttons.transform, "SHARE", ButtonColor, () => Toast.Show(RecordingExport.Export(info)), 110f);
-            Button(buttons.transform, "HEATMAP", ButtonColor, () => Heatmap(info), 130f);
-            GameObject spacer = new GameObject("Space", typeof(RectTransform));
-            spacer.transform.SetParent(buttons.transform, false);
-            spacer.AddComponent<LayoutElement>().flexibleWidth = 1f;
+            var buttons = AuraKit.Rect(row.transform, "Buttons");
+            AuraKit.HStack(buttons, 12f).childForceExpandHeight = true;
+            AuraKit.Size(buttons, -1, 92f);
+            AuraWidgets.Chip(buttons, "Play", AuraIcons.PlayFill, !inRoom, () => Play(info), out Button play, 92f);
+            play.interactable = !inRoom;
+
+            // A recording replays on its own model: one made on someone else's scan cannot.
+            RecordingImport.CheckModel(info, ok =>
+            {
+                if (ok || play == null || missing == null) return;
+                play.interactable = false;
+                missing.text = $"Made on {Esc(info.header.modelName)}, a scan that isn't on this phone, so it can't be replayed here.";
+                missing.gameObject.SetActive(true);
+            });
+            AuraWidgets.Chip(buttons, "Share", AuraIcons.Link, false, () => Toast.Show(RecordingExport.Export(info)), out _, 92f);
+            AuraWidgets.Chip(buttons, "Heatmap", AuraIcons.Fire, false, () => Heatmap(info), out _, 92f);
+            AuraKit.Flex(AuraKit.Rect(buttons, "Space"));
             TextMeshProUGUI delText = null;
-            GameObject del = Button(buttons.transform, "DELETE", DangerColor, () => Delete(info, delText), 110f);
+            AuraWidgets.Chip(buttons, "Delete", AuraIcons.Trash, false, () => Delete(info, delText), out Button del, 92f);
             delText = del.GetComponentInChildren<TextMeshProUGUI>();
+            if (delText != null) delText.color = AuraTheme.Rose;
         }
 
         private void Play(RecordingInfo info)
@@ -149,14 +152,14 @@ namespace AuraSync.UI
             HeatmapUI.Instance?.OpenFromRecording(rec);
         }
 
-        /// <summary>First tap arms it ("SURE?"), a second within 3 s deletes.</summary>
+        /// <summary>First tap arms it ("Sure?"), a second within 3 s deletes.</summary>
         private void Delete(RecordingInfo info, TextMeshProUGUI label)
         {
             if (_armedDelete != info.path || Time.unscaledTime - _armedAt > 3f)
             {
                 _armedDelete = info.path;
                 _armedAt = Time.unscaledTime;
-                if (label != null) label.text = "SURE?";
+                if (label != null) label.text = "Sure?";
                 return;
             }
             _armedDelete = null;
@@ -164,241 +167,141 @@ namespace AuraSync.UI
             Fill();
         }
 
-        // ── Replay bar ─────────────────────────────────────────────────────────
+        // ── Import ─────────────────────────────────────────────────────
+
+        /// <summary>Import: Android's file picker, then the chosen recording joins the list.</summary>
+        private void Import()
+        {
+            if (_importing) return;
+            _importing = true;
+            StartCoroutine(RecordingFilePicker.Pick(
+                path =>
+                {
+                    _importing = false;
+                    if (string.IsNullOrEmpty(path)) return; // cancelled
+                    Toast.Show(RecordingImport.Import(path));
+                    if (_page.IsOpen) Fill();
+                },
+                error =>
+                {
+                    _importing = false;
+                    Toast.Show(error);
+                }));
+        }
+
+        // ── Replay bar ─────────────────────────────────────────────────
 
         private void OnReplayChanged()
         {
             SessionPlayer p = SessionPlayer.Instance;
             bool on = p != null && p.Current != null;
-
-            if (on && !_bar.activeSelf)
+            if (on && !_bar.IsShown)
             {
-                _bar.SetActive(true);
+                _bar.Show();
                 PanelNavigator.Push(ReplayNavId, this, () => SessionPlayer.Instance?.Exit());
-                BuildTimeline(p.Current.Duration);
-                _barTitle.text = "REPLAY  ·  " + Esc(p.Current.info.name);
+                _timeline.minValue = 0f;
+                _timeline.maxValue = Mathf.Max(0.1f, p.Current.Duration);
+                _timeEnd.text = RecordingStore.Clock(p.Current.Duration);
+                _barTitle.text = "Replay · " + Esc(p.Current.info.name);
             }
-            else if (!on && _bar.activeSelf)
+            else if (!on && _bar.IsShown)
             {
-                _bar.SetActive(false);
+                _bar.Hide();
                 PanelNavigator.Remove(ReplayNavId);
             }
             if (!on) return;
 
-            _playText.text  = p.Playing ? "PAUSE" : (p.T >= p.Current.Duration - 0.05f ? "REPLAY" : "PLAY");
-            _speedText.text = p.Speed == 0.5f ? "0.5x" : p.Speed == 2f ? "2x" : "1x";
-            _camText.text   = p.FreeCamera ? "FREE CAMERA" : "PRESENTER VIEW";
+            SetPlayIcon(p);
+            _speedText.text = p.Speed == 0.5f ? "0.5×" : p.Speed == 2f ? "2×" : "1×";
+            _camText.text = p.FreeCamera ? "Free camera" : "Presenter view";
+        }
+
+        private void SetPlayIcon(SessionPlayer p)
+        {
+            string icon = p.Playing ? AuraIcons.Pause : (p.T >= p.Current.Duration - 0.05f ? AuraIcons.Orbit : AuraIcons.PlayFill);
+            _playIcon.sprite = AuraIcons.Get(icon);
         }
 
         void Update()
         {
             SessionPlayer p = SessionPlayer.Instance;
-            if (p == null || p.Current == null || !_bar.activeSelf) return;
+            if (p == null || p.Current == null || !_bar.IsShown) return;
 
-            if (_timeline != null)
-            {
-                _settingSlider = true;
-                _timeline.value = p.T;
-                _settingSlider = false;
-                _bubble.text = RecordingStore.Clock(p.T);
-            }
+            _settingSlider = true;
+            _timeline.value = p.T;
+            _settingSlider = false;
+            _timeNow.text = RecordingStore.Clock(p.T);
 
             string info = p.Caption;
-            if (!string.IsNullOrEmpty(p.Speaking)) info += (info.Length > 0 ? "\n" : "") + "Speaking: " + p.Speaking;
+            if (!string.IsNullOrEmpty(p.Speaking)) info += (info.Length > 0 ? " · " : "") + "Speaking: " + p.Speaking;
             _barInfo.text = info.Length > 0 ? Esc(info) : " ";
-
-            // PLAY / PAUSE changes by itself at the end.
-            string play = p.Playing ? "PAUSE" : (p.T >= p.Current.Duration - 0.05f ? "REPLAY" : "PLAY");
-            if (_playText.text != play) _playText.text = play;
+            SetPlayIcon(p);
         }
 
-        private void BuildTimeline(float duration)
-        {
-            for (int i = _timelineRow.childCount - 1; i >= 0; i--) Destroy(_timelineRow.GetChild(i).gameObject);
-            _timeline = SleekSlider.Create(_timelineRow, 0f, Mathf.Max(0.1f, duration), "0:00", RecordingStore.Clock(duration), out _bubble);
-            _timeline.onValueChanged.AddListener(v =>
-            {
-                if (!_settingSlider) SessionPlayer.Instance?.Seek(v);
-            });
-        }
-
-        // ── Building ───────────────────────────────────────────────────────────
+        // ── Building ───────────────────────────────────────────────────
 
         private void Build()
         {
-            var canvas = gameObject.AddComponent<Canvas>();
-            canvas.renderMode   = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 99; // with Settings: over the drawer and chat, under the room panel
-            var scaler = gameObject.AddComponent<CanvasScaler>();
-            scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1080, 1920);
-            scaler.matchWidthOrHeight  = 0.5f;
-            gameObject.AddComponent<GraphicRaycaster>();
+            _page = AuraPage.Create(transform, "RecordingsPage", 99, CloseList);
+            _page.Title.text = "Recordings";
+            AuraWidgets.Chip(_page.HeaderRight, "Import", AuraIcons.Plus, true, Import, out _, 92f);
 
-            BuildList();
-            BuildBar();
+            var safe = AuraViewer.CreateCanvas(transform, "ReplayCanvas", 99, out _);
+            BuildBar(safe);
         }
 
-        private void BuildList()
+        private void BuildBar(RectTransform safe)
         {
-            _list = new GameObject("RecordingsList", typeof(RectTransform));
-            _list.transform.SetParent(transform, false);
-            var rt = (RectTransform)_list.transform;
-            rt.anchorMin = new Vector2(0.04f, 0.22f);
-            rt.anchorMax = new Vector2(0.96f, 0.84f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _list.AddComponent<Image>().color = PanelColor;
-            _list.AddComponent<TouchBlocker>();
-            var vg = _list.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(14, 14, 12, 12);
-            vg.spacing = 10;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
+            // Full width along the bottom: the dock steps aside during a replay.
+            var sheet = AuraKit.Box(safe, "ReplayBar", AuraTheme.A(AuraTheme.Indigo, 0.96f), AuraTheme.Radius + 6f, true);
+            AuraKit.Border(sheet, AuraTheme.Slate, AuraTheme.Radius + 6f);
+            var rt = sheet.rectTransform;
+            rt.anchorMin = new Vector2(0, 0); rt.anchorMax = new Vector2(1, 0); rt.pivot = new Vector2(0.5f, 0);
+            rt.offsetMin = new Vector2(AuraViewer.Gutter, AuraViewer.BottomReserve);
+            rt.offsetMax = new Vector2(-AuraViewer.Gutter, AuraViewer.BottomReserve + 300f);
+            var v = AuraKit.VStack(sheet, 14f);
+            v.padding = new RectOffset(36, 36, 26, 28);
+            AuraKit.FitHeight(sheet);
 
-            var head = Row(_list.transform, 52f);
-            var title = Text(head.transform, "RECORDINGS", 24f, Color.white);
-            title.fontStyle = FontStyles.Bold;
-            title.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            Button(head.transform, "X", new Color(0.45f, 0.14f, 0.14f), CloseList, 52f);
-
-            _listNote = Text(_list.transform, "", 17f, DimText);
-            _listNote.enableWordWrapping = true;
-            _empty = Text(_list.transform, "No recordings yet. Settings > START RECORDING.", 19f, DimText);
-            _empty.enableWordWrapping = true;
-
-            var scrollGo = new GameObject("Scroll", typeof(RectTransform));
-            scrollGo.transform.SetParent(_list.transform, false);
-            var sle = scrollGo.AddComponent<LayoutElement>();
-            sle.minHeight = 100f; sle.flexibleHeight = 1f;
-            var scroll = scrollGo.AddComponent<ScrollRect>();
-            scroll.horizontal = false;
-            scroll.movementType = ScrollRect.MovementType.Clamped;
-            scroll.scrollSensitivity = 28f;
-            var viewport = new GameObject("Viewport", typeof(RectTransform));
-            viewport.transform.SetParent(scrollGo.transform, false);
-            var vrt = (RectTransform)viewport.transform;
-            vrt.anchorMin = Vector2.zero; vrt.anchorMax = Vector2.one; vrt.offsetMin = vrt.offsetMax = Vector2.zero;
-            viewport.AddComponent<RectMask2D>();
-            viewport.AddComponent<Image>().color = new Color(0f, 0f, 0f, 0.001f);
-            scroll.viewport = vrt;
-            var content = new GameObject("Rows", typeof(RectTransform));
-            content.transform.SetParent(viewport.transform, false);
-            _rows = (RectTransform)content.transform;
-            _rows.anchorMin = new Vector2(0f, 1f); _rows.anchorMax = new Vector2(1f, 1f);
-            _rows.pivot = new Vector2(0.5f, 1f);
-            _rows.offsetMin = _rows.offsetMax = Vector2.zero;
-            var cvg = content.AddComponent<VerticalLayoutGroup>();
-            cvg.spacing = 8;
-            cvg.childControlWidth = cvg.childControlHeight = true;
-            cvg.childForceExpandWidth = true; cvg.childForceExpandHeight = false;
-            content.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            scroll.content = _rows;
-
-            _list.SetActive(false);
-        }
-
-        private void BuildBar()
-        {
-            _bar = new GameObject("ReplayBar", typeof(RectTransform));
-            _bar.transform.SetParent(transform, false);
-            var rt = (RectTransform)_bar.transform;
-            // Above the bottom buttons, full width (the rail is hidden during a replay).
-            rt.anchorMin = new Vector2(0.02f, 0.215f);
-            rt.anchorMax = new Vector2(0.98f, 0.215f);
-            rt.pivot = new Vector2(0.5f, 0f);
-            rt.offsetMin = rt.offsetMax = Vector2.zero;
-            _bar.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-            _bar.AddComponent<Image>().color = PanelColor;
-            _bar.AddComponent<TouchBlocker>();
-            var vg = _bar.AddComponent<VerticalLayoutGroup>();
-            vg.padding = new RectOffset(14, 14, 10, 12);
-            vg.spacing = 8;
-            vg.childControlWidth = vg.childControlHeight = true;
-            vg.childForceExpandWidth = true; vg.childForceExpandHeight = false;
-
-            var head = Row(_bar.transform, 50f);
-            _barTitle = Text(head.transform, "REPLAY", 21f, Color.white);
-            _barTitle.fontStyle = FontStyles.Bold;
-            _barTitle.overflowMode = TextOverflowModes.Ellipsis;
+            var head = AuraKit.Rect(rt, "Head");
+            AuraKit.HStack(head, 12f);
+            AuraKit.Size(head, -1, 84f);
+            _barTitle = AuraKit.Text(head, "Replay", AuraTheme.SizeBody, AuraTheme.Text, AuraWeight.Bold);
             _barTitle.enableWordWrapping = false;
-            _barTitle.gameObject.AddComponent<LayoutElement>().flexibleWidth = 1f;
-            Button(head.transform, "EXIT", DangerColor, () => SessionPlayer.Instance?.Exit(), 100f);
+            AuraKit.Flex(_barTitle);
+            AuraWidgets.Chip(head, "Exit", AuraIcons.Close, false, () => SessionPlayer.Instance?.Exit(), out Button exit, 84f);
+            var exitText = exit.GetComponentInChildren<TextMeshProUGUI>();
+            if (exitText != null) exitText.color = AuraTheme.Rose;
 
-            _barInfo = Text(_bar.transform, " ", 18f, new Color(1f, 1f, 1f, 0.85f));
+            _barInfo = AuraKit.Text(rt, " ", AuraTheme.SizeCaption, AuraTheme.TextDim);
             _barInfo.enableWordWrapping = true;
-            var ile = _barInfo.gameObject.AddComponent<LayoutElement>();
-            ile.minHeight = 48f;
 
-            var tl = Row(_bar.transform, SleekSlider.RowHeight);
-            tl.GetComponent<HorizontalLayoutGroup>().childAlignment = TextAnchor.LowerLeft;
-            _timelineRow = (RectTransform)tl.transform;
+            var tl = AuraKit.Rect(rt, "Timeline");
+            AuraKit.HStack(tl, 14f);
+            AuraKit.Size(tl, -1, 88f);
+            _timeNow = AuraKit.Text(tl, "0:00", AuraTheme.SizeCaption, AuraTheme.Lavender, AuraWeight.SemiBold);
+            AuraKit.Size(_timeNow, 110f);
+            _timeline = AuraWidgets.Slider(tl, 0f, v2 => { if (!_settingSlider) SessionPlayer.Instance?.Seek(v2); }, null, 0f, 1f, 88f);
+            AuraKit.Flex(_timeline);
+            _timeEnd = AuraKit.Text(tl, "0:00", AuraTheme.SizeCaption, AuraTheme.TextDim, AuraWeight.Regular, TextAlignmentOptions.MidlineRight);
+            AuraKit.Size(_timeEnd, 110f);
 
-            var ctr = Row(_bar.transform, 58f);
-            _playText  = Flex(Button(ctr.transform, "PAUSE", AccentColor, () => SessionPlayer.Instance?.TogglePlay(), 100f)).GetComponentInChildren<TextMeshProUGUI>();
-            _speedText = Button(ctr.transform, "1x", ButtonColor, () => SessionPlayer.Instance?.CycleSpeed(), 90f).GetComponentInChildren<TextMeshProUGUI>();
-            _camText   = Flex(Button(ctr.transform, "PRESENTER VIEW", ButtonColor, () =>
+            var ctr = AuraKit.Rect(rt, "Controls");
+            AuraKit.HStack(ctr, 22f, 0, TextAnchor.MiddleCenter);
+            AuraKit.Size(ctr, -1, 130f);
+            AuraWidgets.Chip(ctr, "1×", AuraIcons.Speed, false, () => SessionPlayer.Instance?.CycleSpeed(), out Button speed);
+            _speedText = speed.GetComponentInChildren<TextMeshProUGUI>();
+            AuraWidgets.Round(ctr, AuraIcons.Pause, 126f, true, () => SessionPlayer.Instance?.TogglePlay(), out _playIcon);
+            AuraWidgets.Chip(ctr, "Presenter view", AuraIcons.Follow, true, () =>
             {
                 SessionPlayer p = SessionPlayer.Instance;
                 if (p != null) p.SetFreeCamera(!p.FreeCamera);
-            }, 160f)).GetComponentInChildren<TextMeshProUGUI>();
+            }, out Button cam);
+            _camText = cam.GetComponentInChildren<TextMeshProUGUI>();
 
-            _bar.SetActive(false);
+            _bar = AuraViewer.SlideUp(rt);
         }
 
         private static string Esc(string s) => (s ?? "").Replace("<", "").Replace(">", "");
-
-        private static GameObject Flex(GameObject go)
-        {
-            go.GetComponent<LayoutElement>().flexibleWidth = 1f;
-            return go;
-        }
-
-        private static GameObject Row(Transform parent, float height)
-        {
-            var go = new GameObject("Row", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minHeight = le.preferredHeight = height;
-            le.flexibleHeight = 0f;
-            var hg = go.AddComponent<HorizontalLayoutGroup>();
-            hg.spacing = 10;
-            hg.childAlignment = TextAnchor.MiddleLeft;
-            hg.childControlWidth = hg.childControlHeight = true;
-            hg.childForceExpandWidth = false; hg.childForceExpandHeight = true;
-            return go;
-        }
-
-        private static TextMeshProUGUI Text(Transform parent, string text, float size, Color color)
-        {
-            var go = new GameObject("Text", typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var t = go.AddComponent<TextMeshProUGUI>();
-            t.text = text;
-            t.fontSize = size;
-            t.color = color;
-            t.alignment = TextAlignmentOptions.MidlineLeft;
-            t.raycastTarget = false;
-            return t;
-        }
-
-        private static GameObject Button(Transform parent, string label, Color color, UnityEngine.Events.UnityAction onClick, float width)
-        {
-            var go = new GameObject(label, typeof(RectTransform));
-            go.transform.SetParent(parent, false);
-            var le = go.AddComponent<LayoutElement>();
-            le.minWidth = le.preferredWidth = width;
-            var img = go.AddComponent<Image>();
-            img.color = color;
-            var b = go.AddComponent<UnityEngine.UI.Button>();
-            b.targetGraphic = img;
-            b.onClick.AddListener(onClick);
-            var t = Text(go.transform, label, 20f, Color.white);
-            var trt = t.rectTransform;
-            trt.anchorMin = Vector2.zero; trt.anchorMax = Vector2.one; trt.offsetMin = trt.offsetMax = Vector2.zero;
-            t.alignment = TextAlignmentOptions.Center;
-            t.fontStyle = FontStyles.Bold;
-            t.enableAutoSizing = true; t.fontSizeMin = 13f; t.fontSizeMax = 20f;
-            return go;
-        }
     }
 }

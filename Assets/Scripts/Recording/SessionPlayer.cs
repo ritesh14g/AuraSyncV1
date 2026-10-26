@@ -38,6 +38,8 @@ namespace AuraSync.Recording
         /// <summary>A replay waiting for its model to load (the scene is reloaded on another model).</summary>
         private static string _pendingPath;
 
+        private const string SpaceSceneName = "SpaceScene";
+
         public static event Action OnChanged;
 
         public LoadedRecording Current { get; private set; }
@@ -100,11 +102,12 @@ namespace AuraSync.Recording
             if (info.header.model == SpaceSceneManager.CurrentModelKey && Instance != null)
                 return Instance.Begin(info) ? null : "That recording has nothing to play.";
 
-            // Another model: open it (the way the model list does), then start.
+            // Another model, or no model open at all (Interactive mode → Recordings, in the V1 scene):
+            // open it the way the model list does, in SpaceScene, then start once it has loaded.
             _pendingPath = info.path;
             PlayerPrefs.SetString("SelectedModelFile", info.header.model);
             PlayerPrefs.Save();
-            SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            SceneManager.LoadScene(SpaceSceneName);
             return null;
         }
 

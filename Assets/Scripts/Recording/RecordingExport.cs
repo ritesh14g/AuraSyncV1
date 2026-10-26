@@ -8,8 +8,10 @@ namespace AuraSync.Recording
     /// <summary>
     /// EXPORT for a recording (V3 Phase 9): a copy goes into the phone's
     /// <c>Download/AuraSync</c> folder, then Android's share sheet opens with it (WhatsApp, Drive,
-    /// email...). A recording with sound sends two files: the 3D session and the voice (a WAV any
-    /// player opens). The sharing itself is <see cref="FileExport"/>, which reports use too.
+    /// email...). Always one <c>.aurarec</c> file: a recording with sound has its voice packed
+    /// inside (<see cref="RecordingBundle"/>), so the two can never be separated or mismatched. The
+    /// other phone brings it in with Recordings → Import. The sharing itself is
+    /// <see cref="FileExport"/>, which reports use too.
     /// </summary>
     public static class RecordingExport
     {
@@ -18,9 +20,12 @@ namespace AuraSync.Recording
         {
             if (info == null || !File.Exists(info.path)) return "That recording is gone.";
             string name = FileExport.SafeName(info.name, "AuraSync recording");
-            var files = new List<FileExport.Item> { new FileExport.Item(info.path, name + RecordingStore.Extension, "application/octet-stream") };
-            if (info.HasVoice) files.Add(new FileExport.Item(info.VoicePath, name + ".wav", "audio/wav"));
-            return FileExport.Share(files, "AuraSync recording: " + info.name, Path.Combine(RecordingStore.Folder, "Export"));
+            string dir = Path.Combine(RecordingStore.Folder, "Export");
+            string file;
+            try { file = RecordingBundle.FileToShare(info, dir, name + RecordingStore.Extension); }
+            catch (Exception ex) { return "Could not pack the recording: " + ex.Message; }
+            var files = new List<FileExport.Item> { new FileExport.Item(file, name + RecordingStore.Extension, "application/octet-stream") };
+            return FileExport.Share(files, "AuraSync recording: " + info.name, dir);
         }
     }
 
@@ -82,7 +87,12 @@ namespace AuraSync.Recording
             try
             {
                 Directory.CreateDirectory(fallbackDir);
-                foreach (Item f in files) File.Copy(f.source, Path.Combine(fallbackDir, f.fileName), true);
+                foreach (Item f in files)
+                {
+                    string to = Path.Combine(fallbackDir, f.fileName);
+                    if (!string.Equals(Path.GetFullPath(f.source), Path.GetFullPath(to), StringComparison.OrdinalIgnoreCase))
+                        File.Copy(f.source, to, true); // a bundle is already made in this folder
+                }
                 return files.Count == 1 ? $"Saved to {Path.Combine(fallbackDir, files[0].fileName)}" : $"Saved {files.Count} files to {fallbackDir}";
             }
             catch (Exception ex)
