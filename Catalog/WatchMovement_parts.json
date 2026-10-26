@@ -1,0 +1,2855 @@
+{
+    "version": 1,
+    "modelId": "watch-movement",
+    "glb": "WatchMovement_mobile.glb",
+    "context": "Watch Mechanism",
+    "summary": "This model represents the internal gear assembly of a mechanical timepiece. It is used to demonstrate how energy is transferred from a power source to the hands of a clock. A series of interlocking gears regulates the release of energy to ensure precise timekeeping. This complex system is essential for understanding traditional horological engineering.",
+    "wholeModelOnly": false,
+    "noAirflow": true,
+    "generatedBy": "gemini-3.5-flash, gemini-3.1-flash-lite",
+    "generatedAt": "2026-10-15",
+    "parts": [
+        {
+            "path": "0/0/0/0/0/0",
+            "node": "Cylinder.026_scratch_0",
+            "label": "pallet fork",
+            "aliases": [
+                "anchor",
+                "lever",
+                "escapement lever"
+            ],
+            "function": "The pallet fork is a critical component of the escapement mechanism that interacts with the escape wheel to regulate the release of energy. It oscillates back and forth, locking and unlocking the escape wheel teeth to control the movement of the clock hands.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/1/0",
+                "0/0/0/0/7/0",
+                "0/0/0/0/48/0",
+                "0/0/0/0/49/0",
+                "0/0/0/0/43/0",
+                "0/0/0/0/44/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.6478268504142761,
+                    "y": 0.761115550994873,
+                    "z": -0.031992509961128235
+                },
+                "pivot": {
+                    "x": -7424.7626953125,
+                    "y": 8283.8837890625,
+                    "z": 3777.166748046875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 47,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "pallet fork",
+                "aliases": [
+                    "anchor",
+                    "lever",
+                    "escapement lever"
+                ],
+                "function": "The pallet fork is a critical component of the escapement mechanism that interacts with the escape wheel to regulate the release of energy. It oscillates back and forth, locking and unlocking the escape wheel teeth to control the movement of the clock hands.",
+                "material": "steel",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/1/0",
+            "node": "Cube.023_scratch_0",
+            "label": "main plate",
+            "aliases": [
+                "base plate",
+                "movement plate",
+                "main bridge"
+            ],
+            "function": "The main plate serves as the foundational structure of the watch movement, providing mounting points and support for all other components and gear trains.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/0/0",
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1",
+                "0/0/0/0/16/0",
+                "0/0/0/0/7/0",
+                "0/0/0/0/48/0",
+                "0/0/0/0/15/0",
+                "0/0/0/0/49/0",
+                "0/0/0/0/27/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -8135.9189453125,
+                    "y": 7287.056640625,
+                    "z": 3616.68603515625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 21,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "main plate",
+                "aliases": [
+                    "base plate",
+                    "movement plate",
+                    "main bridge"
+                ],
+                "function": "The main plate serves as the foundational structure of the watch movement, providing mounting points and support for all other components and gear trains.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/2/0",
+            "node": "Spur Gear.005_gear metalic_0",
+            "label": "center wheel",
+            "aliases": [
+                "third wheel",
+                "center gear",
+                "motion work gear"
+            ],
+            "function": "This gear is part of the gear train that transmits power from the mainspring to the escapement. It typically makes one full rotation per hour and drives the minute hand.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/14/0",
+                "0/0/0/0/31/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/3/0",
+                "0/0/0/0/19/0",
+                "0/0/0/0/20/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": -0.011089913478473669,
+                    "y": -0.04487944419373558,
+                    "z": 0.9989308531164213
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546874998,
+                    "z": 3618.100830078125
+                },
+                "speed": 0.26053300499916077,
+                "range": 0.0,
+                "group": "Spur Gear.005"
+            },
+            "assemblyStep": 9,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "center wheel",
+                "aliases": [
+                    "third wheel",
+                    "center gear",
+                    "motion work gear"
+                ],
+                "function": "This gear is part of the gear train that transmits power from the mainspring to the escapement. It typically makes one full rotation per hour and drives the minute hand.",
+                "material": "brass",
+                "motion": "rotate",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/3/0",
+            "node": "Spur Gear.003_gear metalic_0",
+            "label": "minute wheel",
+            "aliases": [
+                "minute gear",
+                "third wheel"
+            ],
+            "function": "This gear is part of the motion work, responsible for driving the minute hand and transmitting power through the gear train.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/2/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/4/0",
+                "0/0/0/0/5/0",
+                "0/0/0/0/19/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.014767097903596284,
+                    "y": -0.00020320582641082563,
+                    "z": 0.9998909398163871
+                },
+                "pivot": {
+                    "x": -7546.009765624998,
+                    "y": 8140.59375,
+                    "z": 3617.9250488281255
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 3,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "minute wheel",
+                "aliases": [
+                    "minute gear",
+                    "third wheel"
+                ],
+                "function": "This gear is part of the motion work, responsible for driving the minute hand and transmitting power through the gear train.",
+                "material": "brass",
+                "motion": "rotate",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/4/0",
+            "node": "Spur Gear.002_gear metalic_0",
+            "label": "third wheel",
+            "aliases": [
+                "third gear",
+                "intermediate wheel",
+                "train wheel"
+            ],
+            "function": "This gear is part of the gear train that transmits power from the center wheel to the fourth wheel. It helps regulate the speed of the energy transfer through the movement.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/30/1/0",
+                "0/0/0/0/3/0",
+                "0/0/0/0/6/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/5/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.014754951324575459,
+                    "y": -0.0006323237674669679,
+                    "z": 0.9998909398419723
+                },
+                "pivot": {
+                    "x": -7545.987792968749,
+                    "y": 8140.530273437501,
+                    "z": 3617.9999999999995
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 43,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 1.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "third wheel",
+                "aliases": [
+                    "third gear",
+                    "intermediate wheel",
+                    "train wheel"
+                ],
+                "function": "This gear is part of the gear train that transmits power from the center wheel to the fourth wheel. It helps regulate the speed of the energy transfer through the movement.",
+                "material": "brass",
+                "motion": "rotate",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/5/0",
+            "node": "Spur Gear.001_gear metalic_0",
+            "label": "fourth wheel",
+            "aliases": [
+                "seconds wheel",
+                "fourth gear"
+            ],
+            "function": "This gear is part of the gear train that transmits power from the mainspring to the escapement. It typically completes one rotation per minute, making it the ideal component to drive the seconds hand.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/4/0",
+                "0/0/0/0/3/0",
+                "0/0/0/0/34/0",
+                "0/0/0/0/33/0",
+                "0/0/0/0/30/0",
+                "0/0/0/0/6/0",
+                "0/0/0/0/9/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.012701793875730524,
+                    "y": 0.00753500665317539,
+                    "z": 0.9998909381062892
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546875,
+                    "z": 3618.1008300781245
+                },
+                "speed": 1.1822869777679443,
+                "range": 0.0,
+                "group": "Spur Gear.001"
+            },
+            "assemblyStep": 31,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "fourth wheel",
+                "aliases": [
+                    "seconds wheel",
+                    "fourth gear"
+                ],
+                "function": "This gear is part of the gear train that transmits power from the mainspring to the escapement. It typically completes one rotation per minute, making it the ideal component to drive the seconds hand.",
+                "material": "brass or steel",
+                "motion": "rotate",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/6/0",
+            "node": "Spur Gear_gear metalic_0",
+            "label": "escape wheel",
+            "aliases": [
+                "escape gear",
+                "escapement wheel"
+            ],
+            "function": "This gear is the final component in the gear train, interacting with the pallet fork to regulate the release of energy from the mainspring. Its precise rotation controls the ticking rhythm of the watch.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/5/0",
+                "0/0/0/0/4/0",
+                "0/0/0/0/33/0",
+                "0/0/0/0/11/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": -0.010256260717410672,
+                    "y": 0.010626395193226876,
+                    "z": -0.9998909384734386
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546874999,
+                    "z": 3618.100830078125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": "Spur Gear"
+            },
+            "assemblyStep": 25,
+            "removeDirection": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "escape wheel",
+                "aliases": [
+                    "escape gear",
+                    "escapement wheel"
+                ],
+                "function": "This gear is the final component in the gear train, interacting with the pallet fork to regulate the release of energy from the mainspring. Its precise rotation controls the ticking rhythm of the watch.",
+                "material": "brass or steel",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/7/0",
+            "node": "Pin1_0_material_0",
+            "label": "pillar",
+            "aliases": [
+                "spacer",
+                "standoff",
+                "post"
+            ],
+            "function": "A structural component that maintains the precise distance between the main plate and other bridge plates within the watch movement.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/48/0",
+                "0/0/0/0/47/0",
+                "0/0/0/0/0/0",
+                "0/0/0/0/1/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.02392578125,
+                    "y": 8140.5,
+                    "z": 3618.09521484375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 1,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "pillar",
+                "aliases": [
+                    "spacer",
+                    "standoff",
+                    "post"
+                ],
+                "function": "A structural component that maintains the precise distance between the main plate and other bridge plates within the watch movement.",
+                "material": "brass or steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/8/0",
+            "node": "Cylinder.028_Material.004_0",
+            "label": "watch case ring",
+            "aliases": [
+                "case band",
+                "movement ring",
+                "casing ring"
+            ],
+            "function": "This ring forms the outer structural boundary of the watch movement, helping to secure and protect the internal components within the watch case.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/8/1",
+                "0/0/0/0/34/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/26/0",
+                "0/0/0/0/32/0",
+                "0/0/0/0/25/0",
+                "0/0/0/0/13/0",
+                "0/0/0/0/1/0",
+                "0/0/0/0/15/0",
+                "0/0/0/0/27/0",
+                "0/0/0/0/16/0",
+                "0/0/0/0/33/0",
+                "0/0/0/0/17/0",
+                "0/0/0/0/21/0",
+                "0/0/0/0/23/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01513671875,
+                    "y": 8140.58740234375,
+                    "z": 5209.2001953125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 29,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "watch case ring",
+                "aliases": [
+                    "case band",
+                    "movement ring",
+                    "casing ring"
+                ],
+                "function": "This ring forms the outer structural boundary of the watch movement, helping to secure and protect the internal components within the watch case.",
+                "material": "steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/8/1",
+            "node": "Cylinder.028_Material.003_0",
+            "label": "minute track ring",
+            "aliases": [
+                "minute chapter ring",
+                "dial ring",
+                "minute scale"
+            ],
+            "function": "This ring features markings to indicate the minutes, providing a reference for the hands to display the time accurately.",
+            "material": "metal",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/34/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/23/0",
+                "0/0/0/0/26/0",
+                "0/0/0/0/32/0",
+                "0/0/0/0/25/0",
+                "0/0/0/0/13/0",
+                "0/0/0/0/1/0",
+                "0/0/0/0/15/0",
+                "0/0/0/0/27/0",
+                "0/0/0/0/16/0",
+                "0/0/0/0/33/0",
+                "0/0/0/0/17/0",
+                "0/0/0/0/21/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0126953125,
+                    "y": 8140.59375,
+                    "z": 4326.5
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 39,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "minute track ring",
+                "aliases": [
+                    "minute chapter ring",
+                    "dial ring",
+                    "minute scale"
+                ],
+                "function": "This ring features markings to indicate the minutes, providing a reference for the hands to display the time accurately.",
+                "material": "metal",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/9/0",
+            "node": "Cylinder.024_inside metal.black_0",
+            "label": "dial spacer",
+            "aliases": [
+                "dial washer",
+                "dial shim",
+                "spacer ring"
+            ],
+            "function": "This component sits between the movement and the dial to ensure proper spacing and alignment. It prevents the dial from rubbing against the hands or other gear components.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/5/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 44,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial spacer",
+                "aliases": [
+                    "dial washer",
+                    "dial shim",
+                    "spacer ring"
+                ],
+                "function": "This component sits between the movement and the dial to ensure proper spacing and alignment. It prevents the dial from rubbing against the hands or other gear components.",
+                "material": "brass or steel",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/10/0",
+            "node": "Cylinder.023_inside metal.black_0",
+            "label": "dial washer",
+            "aliases": [
+                "friction washer",
+                "tension washer",
+                "dial spring"
+            ],
+            "function": "This component provides necessary tension or spacing between the dial and the movement to prevent unwanted movement or rattling of the hands.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/30/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 16,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial washer",
+                "aliases": [
+                    "friction washer",
+                    "tension washer",
+                    "dial spring"
+                ],
+                "function": "This component provides necessary tension or spacing between the dial and the movement to prevent unwanted movement or rattling of the hands.",
+                "material": "brass or steel",
+                "motion": "none",
+                "confidence": 0.800000011920929
+            }
+        },
+        {
+            "path": "0/0/0/0/11/0",
+            "node": "Cylinder.022_inside metal.black_0",
+            "label": "dial",
+            "aliases": [
+                "clock face",
+                "watch face"
+            ],
+            "function": "The dial serves as the primary interface for the user to read the time, featuring markers for hours and minutes. It provides a mounting surface for the hands and protects the internal movement from dust and debris.",
+            "material": "brass or aluminum",
+            "connectsTo": [
+                "0/0/0/0/6/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 23,
+            "removeDirection": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial",
+                "aliases": [
+                    "clock face",
+                    "watch face"
+                ],
+                "function": "The dial serves as the primary interface for the user to read the time, featuring markers for hours and minutes. It provides a mounting surface for the hands and protects the internal movement from dust and debris.",
+                "material": "brass or aluminum",
+                "motion": "none",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/12/0",
+            "node": "Cylinder.021_plastc pink_0",
+            "label": "jewel bearing",
+            "aliases": [
+                "synthetic ruby",
+                "pivot jewel",
+                "bearing"
+            ],
+            "function": "It acts as a low-friction contact point for the rotating gear pivots to reduce wear and improve timekeeping accuracy. These are typically made of synthetic rubies or sapphires.",
+            "material": "synthetic ruby",
+            "connectsTo": [
+                "0/0/0/0/35/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01123046875,
+                    "y": 8140.63330078125,
+                    "z": 3945.0
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 5,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "jewel bearing",
+                "aliases": [
+                    "synthetic ruby",
+                    "pivot jewel",
+                    "bearing"
+                ],
+                "function": "It acts as a low-friction contact point for the rotating gear pivots to reduce wear and improve timekeeping accuracy. These are typically made of synthetic rubies or sapphires.",
+                "material": "synthetic ruby",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/13/0",
+            "node": "Cylinder.020_inside metal.black_0",
+            "label": "movement spacer",
+            "aliases": [
+                "movement ring",
+                "casing ring",
+                "movement holder"
+            ],
+            "function": "This component acts as a structural spacer to secure and center the watch movement within the watch case. It ensures the internal mechanism remains stable and properly aligned.",
+            "material": "brass or plastic",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/32/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 28,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement spacer",
+                "aliases": [
+                    "movement ring",
+                    "casing ring",
+                    "movement holder"
+                ],
+                "function": "This component acts as a structural spacer to secure and center the watch movement within the watch case. It ensures the internal mechanism remains stable and properly aligned.",
+                "material": "brass or plastic",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/14/0",
+            "node": "Cylinder.019_plastc pink_0",
+            "label": "casing screw",
+            "aliases": [
+                "movement screw",
+                "mounting screw",
+                "case screw"
+            ],
+            "function": "This small component secures the movement assembly firmly within the watch case, ensuring all internal parts remain aligned and stable.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/2/0",
+                "0/0/0/0/31/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01123046875,
+                    "y": 8140.63330078125,
+                    "z": 3974.111083984375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 24,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "casing screw",
+                "aliases": [
+                    "movement screw",
+                    "mounting screw",
+                    "case screw"
+                ],
+                "function": "This small component secures the movement assembly firmly within the watch case, ensuring all internal parts remain aligned and stable.",
+                "material": "steel",
+                "motion": "none",
+                "confidence": 0.800000011920929
+            }
+        },
+        {
+            "path": "0/0/0/0/15/0",
+            "node": "Cylinder.017_plastc pink_0",
+            "label": "movement spacer",
+            "aliases": [
+                "movement ring",
+                "casing ring",
+                "movement holder"
+            ],
+            "function": "This component secures the movement within the watch case, ensuring it is properly aligned and protected from shock. It acts as a bridge between the internal mechanism and the outer casing.",
+            "material": "brass or plastic",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/1/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01123046875,
+                    "y": 8140.63330078125,
+                    "z": 3976.5556640625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 19,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement spacer",
+                "aliases": [
+                    "movement ring",
+                    "casing ring",
+                    "movement holder"
+                ],
+                "function": "This component secures the movement within the watch case, ensuring it is properly aligned and protected from shock. It acts as a bridge between the internal mechanism and the outer casing.",
+                "material": "brass or plastic",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/16/0",
+            "node": "Cylinder.016_plastc pink_0",
+            "label": "movement screw",
+            "aliases": [
+                "casing screw",
+                "fixing screw",
+                "fastener"
+            ],
+            "function": "This small screw is used to secure the movement or internal components to the main plate or watch case. It ensures that all parts remain in their correct positions during operation.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/1/0",
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01123046875,
+                    "y": 8140.63330078125,
+                    "z": 3976.5556640625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 20,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement screw",
+                "aliases": [
+                    "casing screw",
+                    "fixing screw",
+                    "fastener"
+                ],
+                "function": "This small screw is used to secure the movement or internal components to the main plate or watch case. It ensures that all parts remain in their correct positions during operation.",
+                "material": "steel",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/17/0",
+            "node": "Cylinder.015_plastc pink_0",
+            "label": "spacer bushing",
+            "aliases": [
+                "sleeve",
+                "standoff",
+                "distance collar"
+            ],
+            "function": "This component acts as a spacer to maintain the correct distance between plates or components within the movement. It ensures that gears and other moving parts have the necessary clearance to operate without friction.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/33/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.01123046875,
+                    "y": 8140.63330078125,
+                    "z": 3969.4443359375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 38,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "spacer bushing",
+                "aliases": [
+                    "sleeve",
+                    "standoff",
+                    "distance collar"
+                ],
+                "function": "This component acts as a spacer to maintain the correct distance between plates or components within the movement. It ensures that gears and other moving parts have the necessary clearance to operate without friction.",
+                "material": "brass or steel",
+                "motion": "none",
+                "confidence": 0.699999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/18/0",
+            "node": "Cylinder.014_plastc pink.001_0",
+            "label": "casing ring",
+            "aliases": [
+                "movement ring",
+                "spacer ring",
+                "movement holder"
+            ],
+            "function": "This ring secures the watch movement within the watch case, ensuring it remains centered and protected from vibrations.",
+            "material": "brass or plastic",
+            "connectsTo": [
+                "0/0/0/0/18/1",
+                "0/0/0/0/35/0",
+                "0/0/0/0/38/0",
+                "0/0/0/0/39/0",
+                "0/0/0/0/37/0",
+                "0/0/0/0/3/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.021484375,
+                    "y": 8140.62841796875,
+                    "z": 3933.857177734375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 4,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "casing ring",
+                "aliases": [
+                    "movement ring",
+                    "spacer ring",
+                    "movement holder"
+                ],
+                "function": "This ring secures the watch movement within the watch case, ensuring it remains centered and protected from vibrations.",
+                "material": "brass or plastic",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/18/1",
+            "node": "Cylinder.014_inside metal.black_0",
+            "label": "watch case",
+            "aliases": [
+                "outer housing",
+                "watch frame",
+                "casing"
+            ],
+            "function": "The watch case protects the delicate internal movement from dust, moisture, and physical damage. It also provides the structural foundation for mounting the dial and movement components.",
+            "material": "stainless steel",
+            "connectsTo": [
+                "0/0/0/0/18/0",
+                "0/0/0/0/38/0",
+                "0/0/0/0/39/0",
+                "0/0/0/0/37/0",
+                "0/0/0/0/35/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8140.6083984375,
+                    "z": 4048.666748046875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 10,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "watch case",
+                "aliases": [
+                    "outer housing",
+                    "watch frame",
+                    "casing"
+                ],
+                "function": "The watch case protects the delicate internal movement from dust, moisture, and physical damage. It also provides the structural foundation for mounting the dial and movement components.",
+                "material": "stainless steel",
+                "motion": "none",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/19/0",
+            "node": "Cylinder.013_plastc pink_0",
+            "label": "casing clamp",
+            "aliases": [
+                "movement clamp",
+                "case screw tab",
+                "movement mounting bracket"
+            ],
+            "function": "This component secures the watch movement firmly within the watch case to prevent unwanted movement or vibration. It acts as a bridge between the internal mechanism and the outer housing.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/2/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/3/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0126953125,
+                    "y": 8140.63427734375,
+                    "z": 3985.875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 8,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 1.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "casing clamp",
+                "aliases": [
+                    "movement clamp",
+                    "case screw tab",
+                    "movement mounting bracket"
+                ],
+                "function": "This component secures the watch movement firmly within the watch case to prevent unwanted movement or vibration. It acts as a bridge between the internal mechanism and the outer housing.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/20/0",
+            "node": "Cylinder.012_plastc pink_0",
+            "label": "casing screw",
+            "aliases": [
+                "case screw",
+                "movement mounting screw",
+                "fixing screw"
+            ],
+            "function": "Secures the watch movement firmly within the watch case to prevent internal shifting. It ensures the mechanism remains properly aligned with the dial and hands.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/2/0",
+                "0/0/0/0/35/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0126953125,
+                    "y": 8140.63427734375,
+                    "z": 3986.0
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 22,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "casing screw",
+                "aliases": [
+                    "case screw",
+                    "movement mounting screw",
+                    "fixing screw"
+                ],
+                "function": "Secures the watch movement firmly within the watch case to prevent internal shifting. It ensures the mechanism remains properly aligned with the dial and hands.",
+                "material": "steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/21/0",
+            "node": "Cylinder.011_inside metal.black_0",
+            "label": "dial plate",
+            "aliases": [
+                "dial base",
+                "dial support",
+                "face plate"
+            ],
+            "function": "This component serves as the structural foundation for the watch face, providing a mounting surface for the dial and associated markers. It ensures the dial is correctly positioned and aligned within the watch case.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/33/0",
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 52,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial plate",
+                "aliases": [
+                    "dial base",
+                    "dial support",
+                    "face plate"
+                ],
+                "function": "This component serves as the structural foundation for the watch face, providing a mounting surface for the dial and associated markers. It ensures the dial is correctly positioned and aligned within the watch case.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/22/0",
+            "node": "Cylinder.010_inside metal.black_0",
+            "label": "balance cock",
+            "aliases": [
+                "balance bridge",
+                "balance support"
+            ],
+            "function": "This component supports the balance wheel assembly, providing a stable mounting point for the balance staff and regulating the oscillation of the hairspring.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/34/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 46,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "balance cock",
+                "aliases": [
+                    "balance bridge",
+                    "balance support"
+                ],
+                "function": "This component supports the balance wheel assembly, providing a stable mounting point for the balance staff and regulating the oscillation of the hairspring.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/23/0",
+            "node": "Cylinder.009_inside metal.black_0",
+            "label": "dial foot",
+            "aliases": [
+                "dial pin",
+                "dial post",
+                "mounting stud"
+            ],
+            "function": "This small component serves as a mounting point to secure the dial to the main plate of the watch movement. It ensures the dial is correctly aligned and held firmly in place.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 6,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial foot",
+                "aliases": [
+                    "dial pin",
+                    "dial post",
+                    "mounting stud"
+                ],
+                "function": "This small component serves as a mounting point to secure the dial to the main plate of the watch movement. It ensures the dial is correctly aligned and held firmly in place.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/24/0",
+            "node": "Cylinder.008_inside metal.black.001_0",
+            "label": "dial plate",
+            "aliases": [
+                "main dial plate",
+                "base plate",
+                "movement base"
+            ],
+            "function": "This component serves as the structural foundation for the watch movement, providing mounting points for the gear train and other internal mechanisms.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/31/0",
+                "0/0/0/0/32/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 48,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial plate",
+                "aliases": [
+                    "main dial plate",
+                    "base plate",
+                    "movement base"
+                ],
+                "function": "This component serves as the structural foundation for the watch movement, providing mounting points for the gear train and other internal mechanisms.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/25/0",
+            "node": "Cylinder.007_inside metal.black_0",
+            "label": "dial spacer",
+            "aliases": [
+                "dial shim",
+                "dial support",
+                "spacer ring"
+            ],
+            "function": "This component sits between the movement and the dial to ensure proper spacing and alignment of the hands.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/32/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 27,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial spacer",
+                "aliases": [
+                    "dial shim",
+                    "dial support",
+                    "spacer ring"
+                ],
+                "function": "This component sits between the movement and the dial to ensure proper spacing and alignment of the hands.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/26/0",
+            "node": "Cylinder.006_inside metal.black_0",
+            "label": "mainspring barrel cover",
+            "aliases": [
+                "barrel cap",
+                "barrel lid",
+                "spring barrel cover"
+            ],
+            "function": "This component acts as a lid for the mainspring barrel, keeping the mainspring securely contained and protected within the housing. It ensures the spring remains properly lubricated and prevents it from expanding or slipping out of the barrel.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.0008380345497239692,
+                    "y": -4.284318575944837e-09,
+                    "z": 0.999999648848985
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.1364746093645
+                },
+                "speed": 0.05,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 26,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "mainspring barrel cover",
+                "aliases": [
+                    "barrel cap",
+                    "barrel lid",
+                    "spring barrel cover"
+                ],
+                "function": "This component acts as a lid for the mainspring barrel, keeping the mainspring securely contained and protected within the housing. It ensures the spring remains properly lubricated and prevents it from expanding or slipping out of the barrel.",
+                "material": "brass or steel",
+                "motion": "rotate",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/27/0",
+            "node": "Cylinder.005_inside metal.black_0",
+            "label": "click spring",
+            "aliases": [
+                "ratchet spring",
+                "click clicker",
+                "winding spring"
+            ],
+            "function": "This spring exerts pressure on the click to keep it engaged with the ratchet wheel, preventing the mainspring from unwinding. It ensures that energy stored in the barrel is maintained.",
+            "material": "tempered steel",
+            "connectsTo": [
+                "0/0/0/0/1/0",
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 53,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "click spring",
+                "aliases": [
+                    "ratchet spring",
+                    "click clicker",
+                    "winding spring"
+                ],
+                "function": "This spring exerts pressure on the click to keep it engaged with the ratchet wheel, preventing the mainspring from unwinding. It ensures that energy stored in the barrel is maintained.",
+                "material": "tempered steel",
+                "motion": "none",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/28/0",
+            "node": "Cylinder.004_inside metal.black_0",
+            "label": "dial spacer",
+            "aliases": [
+                "dial shim",
+                "dial support",
+                "spacer ring"
+            ],
+            "function": "This component sits between the movement and the dial to ensure proper spacing and alignment of the hands.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/33/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0,
+                    "y": 8145.14453125,
+                    "z": 3642.136474609375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 50,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dial spacer",
+                "aliases": [
+                    "dial shim",
+                    "dial support",
+                    "spacer ring"
+                ],
+                "function": "This component sits between the movement and the dial to ensure proper spacing and alignment of the hands.",
+                "material": "brass or steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/29/0",
+            "node": "Cylinder.001_black watch_0",
+            "label": "watch case bezel",
+            "aliases": [
+                "bezel",
+                "watch bezel",
+                "crystal retaining ring"
+            ],
+            "function": "This ring secures the watch crystal to the watch case and provides a finished look to the front of the timepiece.",
+            "material": "stainless steel",
+            "connectsTo": [],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7545.7314453125,
+                    "y": 8140.6982421875,
+                    "z": 3629.030517578125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 40,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "watch case bezel",
+                "aliases": [
+                    "bezel",
+                    "watch bezel",
+                    "crystal retaining ring"
+                ],
+                "function": "This ring secures the watch crystal to the watch case and provides a finished look to the front of the timepiece.",
+                "material": "stainless steel",
+                "motion": "none",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/30/0",
+            "node": "Cube.024_gear metalic_0",
+            "label": "bridge",
+            "aliases": [
+                "movement bridge",
+                "plate bridge",
+                "gear bridge"
+            ],
+            "function": "A bridge serves as a structural support for the pivots of the gear train, holding them in place within the movement. It ensures the gears remain properly aligned and spaced for efficient energy transfer.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/34/0",
+                "0/0/0/0/30/1/0",
+                "0/0/0/0/5/0",
+                "0/0/0/0/10/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": -0.0008086334888766938,
+                    "y": -0.014746344190324704,
+                    "z": -0.9998909397753842
+                },
+                "pivot": {
+                    "x": -7546.021972656251,
+                    "y": 8140.560546875002,
+                    "z": 3618.1008300781255
+                },
+                "speed": 27.858985900878906,
+                "range": 16.600000381469727,
+                "group": "Cube.024"
+            },
+            "assemblyStep": 14,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "bridge",
+                "aliases": [
+                    "movement bridge",
+                    "plate bridge",
+                    "gear bridge"
+                ],
+                "function": "A bridge serves as a structural support for the pivots of the gear train, holding them in place within the movement. It ensures the gears remain properly aligned and spaced for efficient energy transfer.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/30/1/0",
+            "node": "Cylinder.025_plastc pink_0",
+            "label": "winding stem",
+            "aliases": [
+                "crown stem",
+                "winding arbor"
+            ],
+            "function": "This component connects the external crown to the internal movement, allowing the user to wind the mainspring and set the time. It transmits mechanical force from the outside of the case to the gear train.",
+            "material": "hardened steel",
+            "connectsTo": [
+                "0/0/0/0/30/0",
+                "0/0/0/0/4/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": -0.014724456704815642,
+                    "y": -0.001139667717977666,
+                    "z": -0.9998909398190589
+                },
+                "pivot": {
+                    "x": -5379.907714843753,
+                    "y": 7080.79833984375,
+                    "z": 3969.0317382812495
+                },
+                "speed": 27.858985900878906,
+                "range": 16.600000381469727,
+                "group": "Cube.024"
+            },
+            "assemblyStep": 13,
+            "removeDirection": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "winding stem",
+                "aliases": [
+                    "crown stem",
+                    "winding arbor"
+                ],
+                "function": "This component connects the external crown to the internal movement, allowing the user to wind the mainspring and set the time. It transmits mechanical force from the outside of the case to the gear train.",
+                "material": "hardened steel",
+                "motion": "rotate",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/31/0",
+            "node": "Cube.022_scratch_0",
+            "label": "setting lever",
+            "aliases": [
+                "yoke",
+                "clutch lever",
+                "setting bridge"
+            ],
+            "function": "This component is part of the keyless works; it pivots to engage or disengage the winding and time-setting functions when the crown is pulled out. It acts as a mechanical switch to shift the movement between winding the mainspring and adjusting the hands.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/32/0",
+                "0/0/0/0/24/0",
+                "0/0/0/0/2/0",
+                "0/0/0/0/14/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.9862907528877258,
+                    "y": 0.16470737755298615,
+                    "z": 0.010103568434715271
+                },
+                "pivot": {
+                    "x": 9764.1259765625,
+                    "y": -63084.84765625,
+                    "z": 3841.43798828125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 32,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "setting lever",
+                "aliases": [
+                    "yoke",
+                    "clutch lever",
+                    "setting bridge"
+                ],
+                "function": "This component is part of the keyless works; it pivots to engage or disengage the winding and time-setting functions when the crown is pulled out. It acts as a mechanical switch to shift the movement between winding the mainspring and adjusting the hands.",
+                "material": "steel",
+                "motion": "hinge",
+                "confidence": 0.8500000238418579
+            }
+        },
+        {
+            "path": "0/0/0/0/32/0",
+            "node": "Cube.021_scratch_0",
+            "label": "movement bridge",
+            "aliases": [
+                "train bridge",
+                "plate bridge",
+                "gear support"
+            ],
+            "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place. It ensures the gears remain aligned and properly spaced within the movement.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1",
+                "0/0/0/0/31/0",
+                "0/0/0/0/25/0",
+                "0/0/0/0/13/0",
+                "0/0/0/0/24/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -1054.1475830078125,
+                    "y": 14075.5185546875,
+                    "z": 3626.05908203125
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 37,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement bridge",
+                "aliases": [
+                    "train bridge",
+                    "plate bridge",
+                    "gear support"
+                ],
+                "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place. It ensures the gears remain aligned and properly spaced within the movement.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/33/0",
+            "node": "Cube.018_scratch_0",
+            "label": "movement bridge",
+            "aliases": [
+                "train bridge",
+                "top plate",
+                "gear bridge"
+            ],
+            "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place within the movement. It ensures the gears remain aligned and properly spaced for efficient energy transmission.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1",
+                "0/0/0/0/17/0",
+                "0/0/0/0/28/0",
+                "0/0/0/0/6/0",
+                "0/0/0/0/21/0",
+                "0/0/0/0/5/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -11934.4052734375,
+                    "y": 10062.845703125,
+                    "z": 3621.578369140625
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 35,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement bridge",
+                "aliases": [
+                    "train bridge",
+                    "top plate",
+                    "gear bridge"
+                ],
+                "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place within the movement. It ensures the gears remain aligned and properly spaced for efficient energy transmission.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/34/0",
+            "node": "Cube.017_scratch_0",
+            "label": "balance bridge",
+            "aliases": [
+                "balance cock",
+                "balance wheel bridge"
+            ],
+            "function": "This component supports the balance wheel assembly, which acts as the timekeeping heart of the watch. It provides a stable mounting point for the balance staff and hairspring.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1",
+                "0/0/0/0/30/0",
+                "0/0/0/0/36/0",
+                "0/0/0/0/5/0",
+                "0/0/0/0/35/0",
+                "0/0/0/0/22/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7573.68505859375,
+                    "y": 8156.39404296875,
+                    "z": 3620.28662109375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 33,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "balance bridge",
+                "aliases": [
+                    "balance cock",
+                    "balance wheel bridge"
+                ],
+                "function": "This component supports the balance wheel assembly, which acts as the timekeeping heart of the watch. It provides a stable mounting point for the balance staff and hairspring.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/35/0",
+            "node": "Cube.015_scratch_0",
+            "label": "train bridge",
+            "aliases": [
+                "gear train bridge",
+                "movement bridge",
+                "wheel bridge"
+            ],
+            "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place within the movement. It ensures the gears remain aligned and properly spaced for efficient energy transmission.",
+            "material": "brass",
+            "connectsTo": [
+                "0/0/0/0/3/0",
+                "0/0/0/0/18/1",
+                "0/0/0/0/18/0",
+                "0/0/0/0/4/0",
+                "0/0/0/0/34/0",
+                "0/0/0/0/36/0",
+                "0/0/0/0/12/0",
+                "0/0/0/0/2/0",
+                "0/0/0/0/19/0",
+                "0/0/0/0/20/0",
+                "0/0/0/0/26/0",
+                "0/0/0/0/23/0",
+                "0/0/0/0/8/0",
+                "0/0/0/0/8/1"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7527.75927734375,
+                    "y": 8005.57275390625,
+                    "z": 3625.512451171875
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 7,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "train bridge",
+                "aliases": [
+                    "gear train bridge",
+                    "movement bridge",
+                    "wheel bridge"
+                ],
+                "function": "This component acts as a structural support and cover for the gear train, holding the pivots of the wheels in place within the movement. It ensures the gears remain aligned and properly spaced for efficient energy transmission.",
+                "material": "brass",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/36/0",
+            "node": "Cube.003_tiktok_0",
+            "label": "dial numeral",
+            "aliases": [
+                "numeral 3",
+                "hour marker"
+            ],
+            "function": "A numeral fixed to the dial that marks an hour position. It does not move; the hands sweep past it.",
+            "material": "steel or brass",
+            "connectsTo": [
+                "0/0/0/0/34/0",
+                "0/0/0/0/35/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7548.619628906249,
+                    "y": 8140.176757812498,
+                    "z": 3629.077392578125
+                },
+                "speed": 0.1,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 45,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "second hand",
+                "aliases": [
+                    "seconds hand",
+                    "sweep hand"
+                ],
+                "function": "This hand rotates around the dial to indicate the passing of seconds.",
+                "material": "steel or brass",
+                "motion": "rotate",
+                "confidence": 1.0
+            }
+        },
+        {
+            "path": "0/0/0/0/37/0",
+            "node": "Circle.002_tiktok_0",
+            "label": "seconds hand",
+            "aliases": [
+                "hour indicator",
+                "hour pointer"
+            ],
+            "function": "The hour hand rotates around the center of the dial to indicate the current hour of the day.",
+            "material": "steel or brass",
+            "connectsTo": [
+                "0/0/0/0/18/1",
+                "0/0/0/0/18/0",
+                "0/0/0/0/38/0",
+                "0/0/0/0/39/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": -0.007370793494958869,
+                    "y": -0.01252206103697188,
+                    "z": -0.9998944291227154
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546875,
+                    "z": 3618.1008300781245
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": "Circle.002"
+            },
+            "assemblyStep": 42,
+            "removeDirection": {
+                "x": -1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "hour hand",
+                "aliases": [
+                    "hour indicator",
+                    "hour pointer"
+                ],
+                "function": "The hour hand rotates around the center of the dial to indicate the current hour of the day.",
+                "material": "steel or brass",
+                "motion": "rotate",
+                "confidence": 1.0
+            }
+        },
+        {
+            "path": "0/0/0/0/38/0",
+            "node": "Circle.001_tiktok_0",
+            "label": "hour hand",
+            "aliases": [
+                "sweep hand",
+                "seconds indicator",
+                "second pointer"
+            ],
+            "function": "This hand rotates around the dial once every minute to indicate the passing of seconds.",
+            "material": "steel or brass",
+            "connectsTo": [
+                "0/0/0/0/18/1",
+                "0/0/0/0/18/0",
+                "0/0/0/0/39/0",
+                "0/0/0/0/37/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.012771948392622894,
+                    "y": -0.007415252896732556,
+                    "z": 0.9998909397322958
+                },
+                "pivot": {
+                    "x": -7770.959472656252,
+                    "y": 8140.4326171875,
+                    "z": 3643.364746093751
+                },
+                "speed": 0.001388888888888889,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 41,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "second hand",
+                "aliases": [
+                    "sweep hand",
+                    "seconds indicator",
+                    "second pointer"
+                ],
+                "function": "This hand rotates around the dial once every minute to indicate the passing of seconds.",
+                "material": "steel or brass",
+                "motion": "rotate",
+                "confidence": 1.0
+            }
+        },
+        {
+            "path": "0/0/0/0/39/0",
+            "node": "Circle_tiktok_0",
+            "label": "minute hand",
+            "aliases": [
+                "minute pointer",
+                "long hand"
+            ],
+            "function": "Indicates the current minute on the watch dial by rotating around the center post once every hour.",
+            "material": "steel or brass",
+            "connectsTo": [
+                "0/0/0/0/18/1",
+                "0/0/0/0/18/0",
+                "0/0/0/0/38/0",
+                "0/0/0/0/37/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.01274146780521896,
+                    "y": 0.0074673634452751035,
+                    "z": -0.9998909407937172
+                },
+                "pivot": {
+                    "x": -7809.121582031247,
+                    "y": 8140.574218750005,
+                    "z": 3654.405517578125
+                },
+                "speed": 0.016666666666666666,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 30,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "minute hand",
+                "aliases": [
+                    "minute pointer",
+                    "long hand"
+                ],
+                "function": "Indicates the current minute on the watch dial by rotating around the center post once every hour.",
+                "material": "steel or brass",
+                "motion": "rotate",
+                "confidence": 1.0
+            }
+        },
+        {
+            "path": "0/0/0/0/40/0",
+            "node": "fixations_0.001_fixtures.002_0",
+            "label": "movement pin",
+            "aliases": [
+                "locating pin",
+                "alignment pin",
+                "dowel pin"
+            ],
+            "function": "These pins are used to precisely align and secure the movement plates and bridges together during assembly.",
+            "material": "steel",
+            "connectsTo": [
+                "0/0/0/0/47/0",
+                "0/0/0/0/46/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.263671875,
+                    "y": 8174.466796875,
+                    "z": 3626.189208984375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 36,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "movement pin",
+                "aliases": [
+                    "locating pin",
+                    "alignment pin",
+                    "dowel pin"
+                ],
+                "function": "These pins are used to precisely align and secure the movement plates and bridges together during assembly.",
+                "material": "steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/41/0",
+            "node": "escape wheel_0.001_escape_wheel.001_0",
+            "label": "escape wheel",
+            "aliases": [
+                "escapement wheel",
+                "anchor wheel"
+            ],
+            "function": "This gear is the final component of the gear train, interacting with the pallet fork to regulate the release of energy from the mainspring. Its unique tooth shape allows it to lock and unlock in precise intervals, creating the characteristic ticking sound of a mechanical watch.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/1/0",
+                "0/0/0/0/29/0",
+                "0/0/0/0/42/0",
+                "0/0/0/0/43/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": -0.005089983537318914,
+                    "y": 0.9999860102148602,
+                    "z": 0.001439250553403646
+                },
+                "pivot": {
+                    "x": -7546.021972656251,
+                    "y": 8140.560546875,
+                    "z": 3618.100830078124
+                },
+                "speed": 0.9036329984664917,
+                "range": 0.0,
+                "group": "escape wheel_0.001"
+            },
+            "assemblyStep": 51,
+            "removeDirection": {
+                "x": 0.0,
+                "y": -1.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "escape wheel",
+                "aliases": [
+                    "escapement wheel",
+                    "anchor wheel"
+                ],
+                "function": "This gear is the final component of the gear train, interacting with the pallet fork to regulate the release of energy from the mainspring. Its unique tooth shape allows it to lock and unlock in precise intervals, creating the characteristic ticking sound of a mechanical watch.",
+                "material": "brass or steel",
+                "motion": "rotate",
+                "confidence": 1.0
+            }
+        },
+        {
+            "path": "0/0/0/0/42/0",
+            "node": "Pallets_0.001_ruby.003_0",
+            "label": "pallet stones",
+            "aliases": [
+                "pallet jewels",
+                "escape pallets"
+            ],
+            "function": "These are the hard, low-friction surfaces on the pallet fork that lock and release the escape wheel teeth. They are essential for the escapement mechanism to regulate the flow of energy.",
+            "material": "synthetic ruby",
+            "connectsTo": [
+                "0/0/0/0/41/0",
+                "0/0/0/0/43/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": 0.00035890951689070426,
+                    "y": 0.9999570703397841,
+                    "z": -0.009258977342815175
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546874999,
+                    "z": 3618.100830078124
+                },
+                "speed": 10.834050178527832,
+                "range": 21.0,
+                "group": "Pallets_0.001"
+            },
+            "assemblyStep": 17,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "pallet stones",
+                "aliases": [
+                    "pallet jewels",
+                    "escape pallets"
+                ],
+                "function": "These are the hard, low-friction surfaces on the pallet fork that lock and release the escape wheel teeth. They are essential for the escapement mechanism to regulate the flow of energy.",
+                "material": "synthetic ruby",
+                "motion": "hinge",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/43/0",
+            "node": "escapement_0.001_escapement.002_0",
+            "label": "balance wheel assembly",
+            "aliases": [
+                "balance wheel",
+                "oscillator",
+                "hairspring assembly"
+            ],
+            "function": "This component acts as the timekeeping heart of the watch, oscillating back and forth to regulate the release of energy. Its consistent frequency ensures that the gears advance at a precise, steady rate.",
+            "material": "brass, steel, or glucydur",
+            "connectsTo": [
+                "0/0/0/0/44/0",
+                "0/0/0/0/0/0",
+                "0/0/0/0/49/0",
+                "0/0/0/0/1/0",
+                "0/0/0/0/41/0",
+                "0/0/0/0/42/0",
+                "0/0/0/0/47/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": 0.00035890951689070426,
+                    "y": 0.9999570703397841,
+                    "z": -0.009258977342815175
+                },
+                "pivot": {
+                    "x": -7546.02197265625,
+                    "y": 8140.560546874999,
+                    "z": 3618.100830078124
+                },
+                "speed": 10.834050178527832,
+                "range": 21.0,
+                "group": "escapement_0.001"
+            },
+            "assemblyStep": 18,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "balance wheel assembly",
+                "aliases": [
+                    "balance wheel",
+                    "oscillator",
+                    "hairspring assembly"
+                ],
+                "function": "This component acts as the timekeeping heart of the watch, oscillating back and forth to regulate the release of energy. Its consistent frequency ensures that the gears advance at a precise, steady rate.",
+                "material": "brass, steel, or glucydur",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/44/0",
+            "node": "Balance Axle_0.001_axle.002_0",
+            "label": "balance staff",
+            "aliases": [
+                "balance axle",
+                "balance pivot"
+            ],
+            "function": "The balance staff acts as the central axis for the balance wheel, allowing it to oscillate back and forth. It is a critical component that supports the balance assembly and pivots within jewel bearings to minimize friction.",
+            "material": "hardened steel",
+            "connectsTo": [
+                "0/0/0/0/47/0",
+                "0/0/0/0/46/0",
+                "0/0/0/0/0/0",
+                "0/0/0/0/45/0",
+                "0/0/0/0/43/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": 0.00296718504286709,
+                    "y": -0.999986009027892,
+                    "z": 0.004379219267185645
+                },
+                "pivot": {
+                    "x": -7546.021972656248,
+                    "y": 8140.560546875001,
+                    "z": 3618.1008300781245
+                },
+                "speed": 10.834050178527832,
+                "range": 261.70001220703125,
+                "group": "Balance Axle_0.001"
+            },
+            "assemblyStep": 11,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "balance staff",
+                "aliases": [
+                    "balance axle",
+                    "balance pivot"
+                ],
+                "function": "The balance staff acts as the central axis for the balance wheel, allowing it to oscillate back and forth. It is a critical component that supports the balance assembly and pivots within jewel bearings to minimize friction.",
+                "material": "hardened steel",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/45/0",
+            "node": "Impulse Pin_0.001_ruby.003_0",
+            "label": "impulse pin",
+            "aliases": [
+                "roller jewel",
+                "impulse jewel"
+            ],
+            "function": "This small jewel is attached to the balance wheel and interacts with the pallet fork to receive energy pulses, keeping the balance wheel oscillating.",
+            "material": "synthetic ruby",
+            "connectsTo": [
+                "0/0/0/0/44/0",
+                "0/0/0/0/47/0",
+                "0/0/0/0/46/0",
+                "0/0/0/0/0/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": -0.004379039182825416,
+                    "y": -0.9999860097998411,
+                    "z": 0.0029671906624693504
+                },
+                "pivot": {
+                    "x": -7546.021972656249,
+                    "y": 8140.560546875,
+                    "z": 3618.100830078124
+                },
+                "speed": 10.834050178527832,
+                "range": 261.70001220703125,
+                "group": "Impulse Pin_0.001"
+            },
+            "assemblyStep": 34,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "impulse pin",
+                "aliases": [
+                    "roller jewel",
+                    "impulse jewel"
+                ],
+                "function": "This small jewel is attached to the balance wheel and interacts with the pallet fork to receive energy pulses, keeping the balance wheel oscillating.",
+                "material": "synthetic ruby",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/46/0",
+            "node": "Balance Wheel_0.001_balance_wheel.001_0",
+            "label": "balance wheel rim",
+            "aliases": [
+                "balance rim",
+                "oscillator rim"
+            ],
+            "function": "This is the outer circular part of the balance wheel that provides the necessary inertia for the oscillation of the watch movement. It works with the hairspring to regulate the timekeeping of the watch.",
+            "material": "brass or glucydur",
+            "connectsTo": [
+                "0/0/0/0/47/0",
+                "0/0/0/0/44/0",
+                "0/0/0/0/40/0"
+            ],
+            "motion": {
+                "type": "hinge",
+                "axis": {
+                    "x": -0.004425136531985935,
+                    "y": -0.9999860099479218,
+                    "z": 0.002897943254805649
+                },
+                "pivot": {
+                    "x": -7546.021972656248,
+                    "y": 8140.560546875,
+                    "z": 3618.100830078125
+                },
+                "speed": 10.834050178527832,
+                "range": 261.70001220703125,
+                "group": "Balance Wheel_0.001"
+            },
+            "assemblyStep": 15,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "balance wheel rim",
+                "aliases": [
+                    "balance rim",
+                    "oscillator rim"
+                ],
+                "function": "This is the outer circular part of the balance wheel that provides the necessary inertia for the oscillation of the watch movement. It works with the hairspring to regulate the timekeeping of the watch.",
+                "material": "brass or glucydur",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/47/0",
+            "node": "0",
+            "label": "escape wheel",
+            "aliases": [
+                "escapement wheel"
+            ],
+            "function": "This gear receives energy from the gear train and interacts with the pallet fork to regulate the release of power. Its precise teeth shape is crucial for the ticking motion of the watch.",
+            "material": "brass or steel",
+            "connectsTo": [
+                "0/0/0/0/44/0",
+                "0/0/0/0/46/0",
+                "0/0/0/0/40/0"
+            ],
+            "motion": {
+                "type": "rotate",
+                "axis": {
+                    "x": 0.00444829692916737,
+                    "y": 0.9999860100981608,
+                    "z": -0.0028622128486494583
+                },
+                "pivot": {
+                    "x": -7545.858886718751,
+                    "y": 8140.189941406248,
+                    "z": 3618.101074218751
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 12,
+            "removeDirection": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -1.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "escape wheel",
+                "aliases": [
+                    "escapement wheel"
+                ],
+                "function": "This gear receives energy from the gear train and interacts with the pallet fork to regulate the release of power. Its precise teeth shape is crucial for the ticking motion of the watch.",
+                "material": "brass or steel",
+                "motion": "rotate",
+                "confidence": 0.949999988079071
+            }
+        },
+        {
+            "path": "0/0/0/0/48/0",
+            "node": "Pin1_0.001_material.002_0",
+            "label": "dowel pin",
+            "aliases": [
+                "alignment pin",
+                "locating pin",
+                "guide pin"
+            ],
+            "function": "A precision pin used to align and secure two components of the watch movement together during assembly. It ensures that plates and bridges are perfectly positioned relative to each other.",
+            "material": "hardened steel",
+            "connectsTo": [
+                "0/0/0/0/47/0",
+                "0/0/0/0/7/0",
+                "0/0/0/0/0/0",
+                "0/0/0/0/1/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.02392578125,
+                    "y": 8140.5,
+                    "z": 3618.09521484375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 2,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "dowel pin",
+                "aliases": [
+                    "alignment pin",
+                    "locating pin",
+                    "guide pin"
+                ],
+                "function": "A precision pin used to align and secure two components of the watch movement together during assembly. It ensures that plates and bridges are perfectly positioned relative to each other.",
+                "material": "hardened steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        },
+        {
+            "path": "0/0/0/0/49/0",
+            "node": "Pin2_0.001_material.002_0",
+            "label": "taper pin",
+            "aliases": [
+                "alignment pin",
+                "locating pin",
+                "fastening pin"
+            ],
+            "function": "A small cylindrical component used to precisely align and secure two parts of the watch movement together. It ensures that components remain in their correct relative positions during assembly and operation.",
+            "material": "hardened steel",
+            "connectsTo": [
+                "0/0/0/0/47/0",
+                "0/0/0/0/43/0",
+                "0/0/0/0/0/0",
+                "0/0/0/0/1/0"
+            ],
+            "motion": {
+                "type": "none",
+                "axis": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "pivot": {
+                    "x": -7546.0380859375,
+                    "y": 8140.5,
+                    "z": 3618.1396484375
+                },
+                "speed": 1.0,
+                "range": 0.0,
+                "group": ""
+            },
+            "assemblyStep": 49,
+            "removeDirection": {
+                "x": 1.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "reviewed": true,
+            "ai": {
+                "label": "taper pin",
+                "aliases": [
+                    "alignment pin",
+                    "locating pin",
+                    "fastening pin"
+                ],
+                "function": "A small cylindrical component used to precisely align and secure two parts of the watch movement together. It ensures that components remain in their correct relative positions during assembly and operation.",
+                "material": "hardened steel",
+                "motion": "none",
+                "confidence": 0.8999999761581421
+            }
+        }
+    ],
+    "assemblyOrder": [
+        "0/0/0/0/7/0",
+        "0/0/0/0/48/0",
+        "0/0/0/0/3/0",
+        "0/0/0/0/18/0",
+        "0/0/0/0/12/0",
+        "0/0/0/0/23/0",
+        "0/0/0/0/35/0",
+        "0/0/0/0/19/0",
+        "0/0/0/0/2/0",
+        "0/0/0/0/18/1",
+        "0/0/0/0/44/0",
+        "0/0/0/0/47/0",
+        "0/0/0/0/30/1/0",
+        "0/0/0/0/30/0",
+        "0/0/0/0/46/0",
+        "0/0/0/0/10/0",
+        "0/0/0/0/42/0",
+        "0/0/0/0/43/0",
+        "0/0/0/0/15/0",
+        "0/0/0/0/16/0",
+        "0/0/0/0/1/0",
+        "0/0/0/0/20/0",
+        "0/0/0/0/11/0",
+        "0/0/0/0/14/0",
+        "0/0/0/0/6/0",
+        "0/0/0/0/26/0",
+        "0/0/0/0/25/0",
+        "0/0/0/0/13/0",
+        "0/0/0/0/8/0",
+        "0/0/0/0/39/0",
+        "0/0/0/0/5/0",
+        "0/0/0/0/31/0",
+        "0/0/0/0/34/0",
+        "0/0/0/0/45/0",
+        "0/0/0/0/33/0",
+        "0/0/0/0/40/0",
+        "0/0/0/0/32/0",
+        "0/0/0/0/17/0",
+        "0/0/0/0/8/1",
+        "0/0/0/0/29/0",
+        "0/0/0/0/38/0",
+        "0/0/0/0/37/0",
+        "0/0/0/0/4/0",
+        "0/0/0/0/9/0",
+        "0/0/0/0/36/0",
+        "0/0/0/0/22/0",
+        "0/0/0/0/0/0",
+        "0/0/0/0/24/0",
+        "0/0/0/0/49/0",
+        "0/0/0/0/28/0",
+        "0/0/0/0/41/0",
+        "0/0/0/0/21/0",
+        "0/0/0/0/27/0"
+    ]
+}
